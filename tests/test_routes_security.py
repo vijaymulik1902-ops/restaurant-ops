@@ -187,7 +187,7 @@ def test_malformed_urls_give_friendly_redirect_not_error(db, path):
     c = login("manager")
     resp = c.get(path)
     assert resp.status_code == 303, (path, resp.status_code)
-    assert "please check and try again" in c.get(resp.headers["location"], follow_redirects=True).text
+    assert "Check the fields and submit again" in c.get(resp.headers["location"], follow_redirects=True).text
 
 
 def test_absurdly_long_pin_is_just_a_wrong_pin(db):
@@ -262,7 +262,7 @@ def test_unexpected_error_shows_friendly_page(db, monkeypatch):
     c = login("waiter")
     quiet = TestClient(app, raise_server_exceptions=False, follow_redirects=False, cookies=c.cookies)
     resp = quiet.get("/floor")
-    assert resp.status_code == 500 and "Something went wrong" in resp.text and "Traceback" not in resp.text
+    assert resp.status_code == 500 and "go through" in resp.text and "Traceback" not in resp.text
 
 
 def test_table_card_survives_inconsistent_data(db):

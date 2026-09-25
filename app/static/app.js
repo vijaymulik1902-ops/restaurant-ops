@@ -91,9 +91,36 @@
   htmx.onLoad(function (el) { stamp(el); tick(); });
   setInterval(tick, 15000);
 
+  /* ---------- motion: only to show what changed (CSS does the animating) ---------- */
+  var freshTickets = {};   // item ids that just arrived by KOT: print them in
+  var readied = {};        // item ids a chef just marked ready: slip in after the slide-out
+  var priorStatus = {};    // table card id -> status before refresh: crossfade from it
+
+  htmx.onLoad(function (el) {
+    if (!el.classList) return;
+    if (el.classList.contains('kcard')) {
+      if (freshTickets[el.id]) { el.classList.add('feed-in'); delete freshTickets[el.id]; }
+      if (readied[el.id]) { el.classList.add('slip-in'); delete readied[el.id]; }
+    }
+    if (el.classList.contains('tcard') && priorStatus[el.id]) {
+      if (priorStatus[el.id] !== el.dataset.status) {
+        el.dataset.from = priorStatus[el.id];
+        setTimeout(function () { delete el.dataset.from; }, 400);
+      }
+      delete priorStatus[el.id];
+    }
+  });
+  body.addEventListener('htmx:beforeSwap', function (e) {
+    var elt = e.detail.requestConfig && e.detail.requestConfig.elt;
+    if (elt && elt.getAttribute && /\/ready$/.test(elt.getAttribute('hx-post') || '')) {
+      readied[e.detail.target.id] = true;
+    }
+  });
+
   /* ---------- live updates ---------- */
   function refreshCard(el) {
     if (el && el.dataset.cardUrl) {
+      if (el.classList.contains('tcard')) priorStatus[el.id] = el.dataset.status;
       htmx.ajax('GET', el.dataset.cardUrl, { target: el, swap: 'outerHTML' });
     }
   }
@@ -152,6 +179,7 @@
           if (document.getElementById('item-' + it.item_id)) return;
           var slot = document.createElement('div');
           slot.id = 'item-' + it.item_id;
+          freshTickets[slot.id] = true;
           slot.dataset.cardUrl = '/kitchen/items/' + it.item_id + '/card?station=' + board.dataset.station;
           board.appendChild(slot); // newest last: board stays oldest-first
           refreshCard(slot);
@@ -232,6 +260,8 @@
     if (!form.hasAttribute('data-once')) return;
     if (form.dataset.sent) { e.preventDefault(); return; }
     form.dataset.sent = '1';
+    var sendLabel = form.id === 'kot-form' && form.querySelector('.send-label');
+    if (sendLabel) sendLabel.textContent = 'Sending…';
     setTimeout(function () {
       form.querySelectorAll('button[type="submit"], button:not([type])').forEach(function (b) {
         b.disabled = true; b.setAttribute('aria-busy', 'true');
@@ -269,6 +299,7 @@
       // Page loaded right after a successful send: start a fresh draft (once only)
       body.removeAttribute('data-kot-sent');
       try { sessionStorage.removeItem(draftKey); } catch (e) { /* ignore */ }
+      confirmSent();
       return;
     }
     var draft = readDraft();
@@ -280,6 +311,16 @@
     kotForm.querySelectorAll('.stepper input').forEach(function (i) { updateRow(i, true); });
   }
 
+  // Shown on the page the send redirected to, i.e. only after the server accepted the KOT
+  function confirmSent() {
+    var btn = document.getElementById('send-btn');
+    var label = btn && btn.querySelector('.send-label');
+    if (!label) return;
+    btn.classList.add('sent');
+    label.textContent = 'Sent ✓';
+    setTimeout(function () { btn.classList.remove('sent'); label.textContent = 'Send to kitchen'; }, 1400);
+  }
+
   function updateRow(input, skipSave) {
     var row = input.closest('.menu-row');
     var qty = parseInt(input.value, 10) || 0;
@@ -288,12 +329,21 @@
       var note = row.querySelector('.note');
       if (note) note.hidden = qty <= 0 && !note.value;
     }
-    var count = 0;
+    var count = 0, total = 0;
     document.querySelectorAll('#kot-form .stepper input').forEach(function (i) {
-      count += Math.max(0, parseInt(i.value, 10) || 0);
+      var q = Math.max(0, parseInt(i.value, 10) || 0);
+      var r = i.closest('.menu-row');
+      if (i.disabled || !q) return;
+      count += q;
+      total += q * Number(r && r.dataset.price || 0);
     });
+    // Display only: the server prices every KOT itself; the client never sends totals
     var label = document.getElementById('send-count');
-    if (label) label.textContent = count ? '(' + count + ')' : '';
+    if (label) {
+      label.textContent = count
+        ? count + (count === 1 ? ' item' : ' items') + ' · ₹' + (total / 100).toLocaleString('en-IN')
+        : '';
+    }
     if (!skipSave) saveDraft();
   }
   document.addEventListener('click', function (e) {

@@ -1,4 +1,5 @@
 """Shared helpers for routers: templates, flash messages, redirects, event publishing."""
+from datetime import date
 from decimal import Decimal, DecimalException
 from pathlib import Path
 from typing import Annotated
@@ -6,6 +7,7 @@ from urllib.parse import urlsplit
 
 from fastapi import Path as PathParam
 from fastapi import Request
+from pydantic import BeforeValidator, Field
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -24,6 +26,18 @@ CANCEL_REASONS = ("Customer changed mind", "Wrong item entered", "Out of stock")
 
 # Path ids must fit SQLite's INTEGER; a huge number would otherwise crash the query
 Id = Annotated[int, PathParam(ge=1, le=2**31 - 1)]
+
+
+def _blank_is_missing(value):
+    """HTML GET forms send every field, empty ones as "" (e.g. ?date_from=&staff_id=).
+    That means "not set", not "invalid"."""
+    return None if isinstance(value, str) and not value.strip() else value
+
+
+# Optional query filters that tolerate empty form fields
+OptionalDate = Annotated[date | None, BeforeValidator(_blank_is_missing)]
+# The bounds sit on the int inside the union, so a blank field (None) isn't range-checked
+OptionalId = Annotated[Annotated[int, Field(ge=1, le=2**31 - 1)] | None, BeforeValidator(_blank_is_missing)]
 
 
 def rupees(paise: int | None) -> str:

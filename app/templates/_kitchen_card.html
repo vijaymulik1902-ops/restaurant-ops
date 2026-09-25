@@ -4,7 +4,8 @@
      {% if i.status != 'ready' %}data-late-in="{{ WARN_KITCHEN_SEC - i.age_seconds }}"{% endif %}>
   {% if i.status in ('pending', 'preparing') %}
   <form hx-post="/kitchen/items/{{ i.item_id }}/{{ 'start' if i.status == 'pending' else 'ready' }}"
-        hx-target="#item-{{ i.item_id }}" hx-swap="outerHTML" hx-disabled-elt="find button"
+        hx-target="#item-{{ i.item_id }}" hx-disabled-elt="find button"
+        hx-swap="{{ 'outerHTML swap:220ms' if i.status == 'preparing' else 'outerHTML' }}"
         method="post" action="/kitchen/items/{{ i.item_id }}/{{ 'start' if i.status == 'pending' else 'ready' }}">
     <input type="hidden" name="station" value="{{ station }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -19,8 +20,8 @@
       <span class="kname"><strong>{{ i.qty }}×</strong> {{ i.name }}</span>
       {% if i.note %}<span class="knote">{{ i.note }}</span>{% endif %}
       <span class="kaction">
-        {%- if i.status == 'pending' %}Tap to START
-        {%- elif i.status == 'preparing' %}Cooking · tap when READY
+        {%- if i.status == 'pending' %}Tap to start cooking
+        {%- elif i.status == 'preparing' %}Cooking · tap when ready
         {%- else %}Ready · waiting for pickup{% endif -%}
       </span>
   {% if i.status in ('pending', 'preparing') %}

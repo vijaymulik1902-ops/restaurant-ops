@@ -3,6 +3,7 @@
 (function () {
   'use strict';
 
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var dataEl = document.getElementById('sales-data');
   var data = dataEl ? JSON.parse(dataEl.textContent) : null;
 
@@ -22,7 +23,7 @@
       responsive: true,
       maintainAspectRatio: false,  // the .chart-box sets the height; width follows the phone
       resizeDelay: 100,            // rotate/resize on mobile without thrashing
-      animation: false,
+      animation: animateOnce ? { duration: 500, easing: 'easeOutCubic' } : false,  // once, on first draw
       layout: { padding: { top: 12, right: 12, left: 4 } },  // room so edge points aren't clipped
       interaction: { mode: 'index', intersect: false },   // crosshair-style hover
       plugins: {
@@ -45,6 +46,8 @@
     if (existing) existing.destroy();
     return new window.Chart(canvas, config);
   }
+
+  var animateOnce = !reduceMotion;
 
   function renderCharts() {
     if (!data || !window.Chart) return;
@@ -92,7 +95,31 @@
     }
   }
   renderCharts();
+  animateOnce = false;  // redraws (back/forward cache) appear instantly
   window.addEventListener('pageshow', function (e) { if (e.persisted) renderCharts(); });
+
+  /* ---------- the four headline figures count up once on load ---------- */
+  function countUp(el) {
+    var finalText = el.textContent;
+    var m = finalText.match(/^(-?)₹([\d,]+)\.(\d{2})$/);
+    if (!m) return;
+    var target = Number(m[2].replace(/,/g, '')) + Number(m[3]) / 100;
+    var sign = m[1];
+    var start = null;
+    function frame(ts) {
+      if (start === null) start = ts;
+      var t = Math.min(1, (ts - start) / 600);
+      var eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = sign + '₹' + (target * eased).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (t < 1 && !done) requestAnimationFrame(frame); else el.textContent = finalText;
+    }
+    var done = false;
+    requestAnimationFrame(frame);
+    // Money must never be left mid-count: animation frames pause in background tabs and
+    // may not run at all, so the exact server figure is always restored on a timer too.
+    setTimeout(function () { done = true; el.textContent = finalText; }, 700);
+  }
+  if (!reduceMotion) document.querySelectorAll('.stats strong').forEach(countUp);
 
   /* ---------- sortable menu table ---------- */
   var table = document.getElementById('menu-table');

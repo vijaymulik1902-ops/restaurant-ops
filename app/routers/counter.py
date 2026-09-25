@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from app.auth import CurrentStaff, require_role
 from app.models import PAYMENT_MODES
 from app.services import ServiceError, billing, orders, reports, tables
-from app.web import COUNTER_ROLES, Id, parse_rupees, publish, render, see_other
+from app.web import COUNTER_ROLES, Id, OptionalDate, parse_rupees, publish, render, see_other
 
 router = APIRouter()
 counter_staff = require_role(*COUNTER_ROLES)
@@ -58,5 +58,5 @@ def bill_print(request: Request, bill_id: Id, staff: CurrentStaff = Depends(coun
 
 
 @router.get("/reports/day-close")
-def day_close(request: Request, day: date | None = None, staff: CurrentStaff = Depends(counter_staff)):
+def day_close(request: Request, day: OptionalDate = None, staff: CurrentStaff = Depends(counter_staff)):
     return render(request, "day_close.html", staff, report=reports.day_close(day))

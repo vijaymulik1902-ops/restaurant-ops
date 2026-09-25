@@ -31,8 +31,8 @@ from app.web import ROLE_HOME, back_url, flash, is_htmx, see_other
 log = logging.getLogger("app")
 
 STALE_MESSAGE = "Someone else updated this, reloaded"
-BUSY_MESSAGE = "The system is busy, please try again"
-BAD_INPUT_MESSAGE = "Something in that form wasn't valid, please check and try again"
+BUSY_MESSAGE = "The system is busy right now. Wait a moment and try again"
+BAD_INPUT_MESSAGE = "Something in that form wasn't valid. Check the fields and submit again"
 
 
 BACKUP_INTERVAL_SEC = 24 * 60 * 60
@@ -134,11 +134,11 @@ async def on_unexpected(request: Request, exc: Exception):
     """Last resort: log the traceback, show staff a plain page instead of a stack trace."""
     log.exception("Unhandled error on %s %s", request.method, request.url.path)
     if is_htmx(request):
-        headers = {"HX-Trigger": json.dumps({"flash": {"message": "Something went wrong, try again"}}),
+        headers = {"HX-Trigger": json.dumps({"flash": {"message": "That didn't go through. Try again"}}),
                    "HX-Reswap": "none"}
         return Response(status_code=500, headers=headers)
-    return HTMLResponse(_simple_page("Something went wrong",
-                                     "Nothing was lost. Go back and try again."), status_code=500)
+    return HTMLResponse(_simple_page("That didn't go through",
+                                     "Nothing was saved. Go back and try again."), status_code=500)
 
 
 def _simple_page(title: str, message: str) -> str:

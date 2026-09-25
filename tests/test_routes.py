@@ -249,7 +249,7 @@ def test_full_service_flow_through_screens(db):
     item_id = orders.get_order(order_id)["items"][0]["item_id"]
     card = chef.post(f"/kitchen/items/{item_id}/start", headers={"HX-Request": "true"},
                      follow_redirects=True)
-    assert "READY" in card.text
+    assert "tap when ready" in card.text
     chef.post(f"/kitchen/items/{item_id}/ready", headers={"HX-Request": "true"})
 
     # Waiter serves it

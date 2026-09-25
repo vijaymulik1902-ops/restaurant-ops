@@ -2,7 +2,7 @@
 {% block title %}Audit log · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}audit{% endblock %}
 {% macro show(v) -%}
-  {%- if v is none %}—{% else %}{% for k, val in v.items() %}<span class="kv"><b>{{ k }}</b> {{ val }}</span>{% endfor %}{% endif -%}
+  {%- if v is none %}—{% else %}<div class="kvs">{% for k, val in v.items() %}<span class="kv"><b>{{ k }}</b> {{ val }}</span>{% endfor %}</div>{% endif -%}
 {%- endmacro %}
 {% macro page_link(n, label) -%}
   <a role="button" class="secondary outline" href="/audit?page={{ n }}{% for k, v in filters.items() if v %}&{{ k }}={{ v|string|urlencode }}{% endfor %}">{{ label }}</a>
@@ -34,13 +34,13 @@
   <tbody>
   {% for r in rows %}
   <tr class="{% if r.highlight %}flagged{% endif %}">
-    <td class="nowrap">{{ r.at.strftime('%d %b %H:%M') }}</td>
-    <td>{{ r.staff_name }}</td>
-    <td>{{ r.action|replace('_', ' ') }}{% if r.highlight %}<br><strong class="flag">{{ r.highlight }}</strong>{% endif %}</td>
-    <td class="nowrap">{{ r.entity|replace('_', ' ') }} #{{ r.entity_id }}</td>
-    <td>{{ show(r.old) }}</td>
-    <td>{{ show(r.new) }}</td>
-    <td>{{ r.reason or '' }}</td>
+    <td class="nowrap a-when" data-label="When">{{ r.at.strftime('%d %b %H:%M') }}</td>
+    <td class="a-who" data-label="Who">{{ r.staff_name }}</td>
+    <td class="a-action" data-label="Action">{{ r.action|replace('_', ' ') }}{% if r.highlight %}<br><strong class="flag">{{ r.highlight }}</strong>{% endif %}</td>
+    <td class="nowrap" data-label="What">{{ r.entity|replace('_', ' ') }} #{{ r.entity_id }}</td>
+    <td data-label="Before">{{ show(r.old) }}</td>
+    <td data-label="After">{{ show(r.new) }}</td>
+    <td data-label="Reason">{{ r.reason or '—' }}</td>
   </tr>
   {% endfor %}
   </tbody>
@@ -52,6 +52,6 @@
   {% if page < pages %}{{ page_link(page + 1, 'Older →') }}{% endif %}
 </div>
 {% else %}
-<p class="muted">No entries match.</p>
+<div class="empty"><strong>No entries match.</strong>Clear a filter or widen the dates.</div>
 {% endif %}
 {% endblock %}

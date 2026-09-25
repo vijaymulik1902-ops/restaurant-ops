@@ -12,15 +12,15 @@ from app.auth import CurrentStaff, require_role
 from app.db import now
 from app.models import EXPENSE_CATEGORIES, STATIONS
 from app.services import ServiceError, audit, backups, business_day_of, expenses, menu, menu_admin, sales, staff_admin
-from app.web import Id, flash, parse_rupees, publish, render, see_other
+from app.web import Id, OptionalDate, OptionalId, flash, parse_rupees, publish, render, see_other
 
 router = APIRouter()
 manager_only = require_role("manager")
 
 
 @router.get("/audit")
-def audit_page(request: Request, date_from: date | None = None, date_to: date | None = None,
-               staff_id: Annotated[int | None, Query(ge=1, le=2**31 - 1)] = None,
+def audit_page(request: Request, date_from: OptionalDate = None, date_to: OptionalDate = None,
+               staff_id: OptionalId = None,
                action: str | None = None, page: Annotated[int, Query(ge=1, le=100_000)] = 1,
                staff: CurrentStaff = Depends(manager_only)):
     result = audit.list_audit(date_from, date_to, staff_id, action or None, page)
@@ -100,7 +100,7 @@ def archive_dish(request: Request, menu_item_id: Id, archived: str = Form(""),
 # ---------- expenses ----------
 
 @router.get("/expenses")
-def expenses_page(request: Request, start: date | None = None, end: date | None = None,
+def expenses_page(request: Request, start: OptionalDate = None, end: OptionalDate = None,
                   staff: CurrentStaff = Depends(manager_only)):
     if not (start or end):
         start, end = sales.preset_range("this_month")
@@ -135,15 +135,15 @@ def delete_expense(request: Request, expense_id: Id, reason: str = Form(""),
 # ---------- sales report ----------
 
 @router.get("/reports/sales")
-def sales_page(request: Request, preset: str | None = None, start: date | None = None,
-               end: date | None = None, staff: CurrentStaff = Depends(manager_only)):
+def sales_page(request: Request, preset: str | None = None, start: OptionalDate = None,
+               end: OptionalDate = None, staff: CurrentStaff = Depends(manager_only)):
     start, end, preset = sales.resolve_range(preset, start, end)
     return render(request, "sales.html", staff, report=sales.sales_summary(start, end), preset=preset,
                   presets=sales.PRESETS, today=business_day_of(now()))
 
 
 @router.get("/reports/sales.csv")
-def sales_csv(preset: str | None = None, start: date | None = None, end: date | None = None,
+def sales_csv(preset: str | None = None, start: OptionalDate = None, end: OptionalDate = None,
               staff: CurrentStaff = Depends(manager_only)):
     start, end, _ = sales.resolve_range(preset, start, end)
     buf = io.StringIO()
