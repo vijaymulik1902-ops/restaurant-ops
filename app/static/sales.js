@@ -20,7 +20,8 @@
   function baseOptions() {
     return {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: false,  // the .chart-box sets the height; width follows the phone
+      resizeDelay: 100,            // rotate/resize on mobile without thrashing
       animation: false,
       interaction: { mode: 'index', intersect: false },   // crosshair-style hover
       plugins: {
@@ -28,17 +29,26 @@
         tooltip: { callbacks: { label: function (ctx) { return rupees(ctx.parsed.y); } } }
       },
       scales: {
-        x: { ticks: { color: INK, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        x: { ticks: { color: INK, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: INK, callback: function (v) { return rupees(v); } },
              grid: { color: GRID }, border: { display: false } }
       }
     };
   }
 
-  if (data && window.Chart) {
+  // Never stack two charts on one canvas: destroy whatever is there, then draw.
+  // (Presets are separate page loads; this also covers back/forward-cache restores.)
+  function draw(canvas, config) {
+    var existing = window.Chart.getChart(canvas);
+    if (existing) existing.destroy();
+    return new window.Chart(canvas, config);
+  }
+
+  function renderCharts() {
+    if (!data || !window.Chart) return;
     var daily = document.getElementById('daily-chart');
     if (daily) {
-      new window.Chart(daily, {
+      draw(daily, {
         type: 'line',
         data: {
           labels: data.days.map(function (d) { return d.slice(5); }),  // MM-DD
@@ -53,7 +63,7 @@
     if (hours) {
       var opts = baseOptions();
       opts.plugins.tooltip.callbacks.afterLabel = function (ctx) { return data.hourBills[ctx.dataIndex] + ' bills'; };
-      new window.Chart(hours, {
+      draw(hours, {
         type: 'bar',
         data: {
           labels: data.hours.map(function (_, h) { return (h < 10 ? '0' : '') + h; }),
@@ -64,6 +74,8 @@
       });
     }
   }
+  renderCharts();
+  window.addEventListener('pageshow', function (e) { if (e.persisted) renderCharts(); });
 
   /* ---------- sortable menu table ---------- */
   var table = document.getElementById('menu-table');

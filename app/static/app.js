@@ -349,9 +349,11 @@
         var k = key.dataset.key;
         if (k === 'clear') pin.value = '';
         else if (k === 'back') pin.value = pin.value.slice(0, -1);
-        else if (pin.value.length < 4) pin.value += k;
+        else if (pin.value.length < 8) pin.value += k;
+        // Auto-submit once the PIN is as long as this person's role uses (4, or 6 for managers)
         var form = document.getElementById('login-form');
-        if (pin.value.length === 4 && form.querySelector('input[name="name"]:checked')) form.requestSubmit();
+        var who = form.querySelector('input[name="name"]:checked');
+        if (who && pin.value.length === Number(who.dataset.pinLength || 4)) form.requestSubmit();
       });
     });
   }

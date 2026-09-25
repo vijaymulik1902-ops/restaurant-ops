@@ -59,10 +59,11 @@ def reset_and_seed() -> dict:
 @pytest.fixture(autouse=True)
 def db():
     """Fresh schema and minimal data for every test (no bcrypt, so it stays fast)."""
-    from app.auth import limiter
+    from app.auth import ip_limiter, limiter
 
     ids = reset_and_seed()
     limiter.reset()
+    ip_limiter.reset()
     yield ids
     write_engine.dispose()
 

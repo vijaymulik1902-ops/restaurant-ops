@@ -236,3 +236,17 @@ table.sortable th[aria-sort="ascending"]::after { content: " ▲"; }
 table.sortable th[aria-sort="descending"]::after { content: " ▼"; }
 table.sortable tr.top td:first-child { color: #6fdc8c; }
 table.sortable tr.low td:first-child { color: #ffcf6e; }
+
+/* ⓘ tooltips: hover on desktop, tap (focus) on phones */
+.tip { position: relative; display: inline-flex; align-items: center; justify-content: center;
+       width: 1.6rem; height: 1.6rem; min-height: 0; padding: 0; margin: 0 0 0 .2rem; border-radius: 50%;
+       background: transparent; border: 1px solid #3a4655; color: var(--muted); font-size: .8rem;
+       line-height: 1; vertical-align: middle; cursor: help; }
+.tip:hover::after, .tip:focus::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + .4rem); transform: translateX(-50%);
+  width: max-content; max-width: min(18rem, 80vw); white-space: normal; text-align: left; z-index: 20;
+  padding: .5rem .65rem; border-radius: .4rem; background: #0b0f14; border: 1px solid #3a4655;
+  color: #e6e6e6; font-size: .85rem; font-weight: normal; text-transform: none; box-shadow: 0 4px 14px #000a; }
+@media (max-width: 600px) { .chart-box { height: 13rem; } }
+/* Stat card figures never break mid-number ("₹9,29,474." / "00") on in-between widths */
+.stats strong { white-space: nowrap; font-size: clamp(1.05rem, 4.2vw, 1.4rem); }

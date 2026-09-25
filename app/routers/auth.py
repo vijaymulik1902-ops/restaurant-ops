@@ -17,6 +17,11 @@ def login_page(request: Request, staff: auth.CurrentStaff | None = Depends(auth.
 
 @router.post("/login")
 def login_submit(request: Request, name: str = Form(""), pin: str = Form("")):
+    wait = auth.ip_limiter.attempt(auth.client_ip(request))
+    if wait:
+        return render(request, "login.html", status_code=429, selected=name,
+                      error=f"Too many login attempts from this network. Try again in {(wait + 59) // 60} min",
+                      staff_list=auth.active_staff_names())
     try:
         staff = auth.login(name, pin)
     except auth.AuthError as e:

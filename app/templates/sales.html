@@ -5,6 +5,7 @@
 {% set labels = {'today': 'Today', 'yesterday': 'Yesterday', 'this_week': 'This week',
                  'this_month': 'This month', 'last_month': 'Last month'} %}
 {% macro pct(v) -%}{% if v is none %}—{% else %}{{ v }}%{% endif %}{%- endmacro %}
+{% from "_macros.html" import tip %}
 {% block content %}
 <div class="bar">
   <h2>Sales report
@@ -53,7 +54,7 @@
   </table></div>
 </details>
 
-<h3>Peak hours <small class="muted">by the hour guests were seated</small></h3>
+<h3>Peak hours (by seating time) {{ tip("Bills and net sales grouped by the hour the table was seated, not the hour it paid.") }}</h3>
 {% if CHART_JS_AVAILABLE %}
 <div class="chart-box"><canvas id="hours-chart" role="img" aria-label="Bar chart of net sales by hour of day; the same numbers are in the table below"></canvas></div>
 {% endif %}
@@ -80,8 +81,9 @@
   <tr><td>Expenses total</td><td class="num">{{ t.expenses_paise|rupees }}</td></tr>
   <tr class="grand"><td>Net profit (net sales - expenses)</td><td class="num {{ 'ok-text' if t.net_profit_paise >= 0 else 'danger-text' }}">{{ t.net_profit_paise|rupees }}</td></tr>
   <tr><td>GST collected <small class="muted">(passed to government, not revenue)</small></td><td class="num">{{ t.gst_paise|rupees }}</td></tr>
-  <tr><td>Bills · average bill (net)</td><td class="num">{{ t.bill_count }} · {{ t.average_bill_paise|rupees }}</td></tr>
-  <tr><td>Average daily net sales ({{ t.days }} days)</td><td class="num">{{ t.average_daily_net_sales_paise|rupees }}</td></tr>
+  <tr><td>Bills</td><td class="num">{{ t.bill_count }}</td></tr>
+  <tr><td>Average bill (net sales, excl. GST) {{ tip("Net sales (after discounts, before GST) divided by the number of paid bills.") }}</td><td class="num">{{ t.average_bill_paise|rupees }}</td></tr>
+  <tr><td>Average net sales per calendar day ({{ t.days }} days) {{ tip("Net sales divided by every calendar day in the period, including days with no sales.") }}</td><td class="num">{{ t.average_daily_net_sales_paise|rupees }}</td></tr>
   <tr><td>Guests · average spend per guest</td><td class="num">{{ t.guests }} · {{ t.average_spend_per_guest_paise|rupees }}</td></tr>
 </table>
 

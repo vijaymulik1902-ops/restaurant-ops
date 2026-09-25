@@ -220,3 +220,26 @@ def test_expenses_page_add_list_delete(db, clock):
     eid = listed["rows"][0]["expense_id"]
     assert c.post(f"/expenses/{eid}/delete", data={"reason": "duplicate"}).status_code == 303
     assert expenses.list_expenses(date(2026, 9, 1), date(2026, 9, 30))["total_paise"] == 0
+
+
+# ---------- Round 7, Part A: unambiguous labels ----------
+
+def test_average_labels_are_unambiguous_with_tooltips(db, clock):
+    _paid(db, [("dal", 1)])
+    counter_page = login("counter").get("/reports/day-close?day=2026-09-25").text
+    assert "Average bill (incl. GST)" in counter_page and 'class="tip"' in counter_page
+    page = login("manager").get("/reports/sales?preset=today").text
+    for label in ("Average bill (net sales, excl. GST)", "Average net sales per calendar day",
+                  "Peak hours (by seating time)"):
+        assert label in page
+    assert page.count('class="tip"') >= 3 and page.count("data-tip=") >= 3
+
+
+def test_chart_js_is_local_and_charts_never_stack():
+    from pathlib import Path
+
+    static = Path(__file__).resolve().parent.parent / "app" / "static"
+    assert "chart.js@4.4.4" in (static / "chart.umd.min.js").read_text()[:400]
+    js = (static / "sales.js").read_text()
+    assert "Chart.getChart(canvas)" in js and "existing.destroy()" in js
+    assert "maintainAspectRatio: false" in js and ".innerHTML" not in js

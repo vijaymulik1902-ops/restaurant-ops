@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Day close · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}day-close{% endblock %}
+{% from "_macros.html" import tip %}
 {% block content %}
 {% set r = report %}
 <div class="bar">
@@ -14,7 +15,7 @@
 <div class="stats">
   <article><small>Total sales</small><strong>{{ r.total_sales_paise|rupees }}</strong></article>
   <article><small>Bills</small><strong>{{ r.bill_count }}</strong></article>
-  <article><small>Average bill</small><strong>{{ r.average_bill_paise|rupees }}</strong></article>
+  <article><small>Average bill (incl. GST) {{ tip("Total collected including GST, divided by the number of bills paid this business day.") }}</small><strong>{{ r.average_bill_paise|rupees }}</strong></article>
 </div>
 
 <h3>By payment mode</h3>

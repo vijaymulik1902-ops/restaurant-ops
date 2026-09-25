@@ -1,0 +1,30 @@
+# Render Blueprint: one web service + a persistent disk for the SQLite database and backups.
+# Keep --workers 1: live updates (SSE) are broadcast from this one process's memory.
+services:
+  - type: web
+    name: restaurant-ops
+    runtime: python
+    plan: starter              # persistent disks need a paid instance type
+    region: singapore          # closest Render region to India; change if you prefer
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DB_PATH
+        value: /var/data/restaurant.db
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: GST_PERCENT
+        value: "5"
+      - key: TIMEZONE
+        value: Asia/Kolkata
+      - key: RESTAURANT_NAME
+        value: Demo Restaurant
+      - key: SECRET_KEY
+        generateValue: true

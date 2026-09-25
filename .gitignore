@@ -4,3 +4,8 @@ __pycache__/
 *.db-wal
 *.db-shm
 .env
+backups/
+loadtest/*.csv
+loadtest/*.html
+*.db-journal
+*.partial

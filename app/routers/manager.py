@@ -5,12 +5,13 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from starlette.background import BackgroundTask
 
 from app.auth import CurrentStaff, require_role
 from app.db import now
 from app.models import EXPENSE_CATEGORIES, STATIONS
-from app.services import ServiceError, audit, business_day_of, expenses, menu, menu_admin, sales
+from app.services import ServiceError, audit, backups, business_day_of, expenses, menu, menu_admin, sales, staff_admin
 from app.web import Id, flash, parse_rupees, publish, render, see_other
 
 router = APIRouter()
@@ -150,3 +151,38 @@ def sales_csv(preset: str | None = None, start: date | None = None, end: date | 
     filename = f"menu-sales-{start.isoformat()}-to-{end.isoformat()}.csv"
     return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# ---------- staff ----------
+
+@router.get("/staff")
+def staff_page(request: Request, staff: CurrentStaff = Depends(manager_only)):
+    return render(request, "staff.html", staff, people=staff_admin.list_staff())
+
+
+@router.post("/staff/{staff_id}/pin")
+def change_pin(request: Request, staff_id: Id, new_pin: str = Form(""), confirm_pin: str = Form(""),
+               staff: CurrentStaff = Depends(manager_only)):
+    result = staff_admin.change_pin(staff_id, new_pin, confirm_pin, staff.id)
+    flash(request, f"PIN changed for {result['name']}", kind="ok")
+    return see_other(f"/staff#staff-{staff_id}")
+
+
+@router.post("/staff/{staff_id}/active")
+def set_active(request: Request, staff_id: Id, active: str = Form(""),
+               staff: CurrentStaff = Depends(manager_only)):
+    result = staff_admin.set_active(staff_id, active == "1", staff.id)
+    if result["changed"]:
+        state = "reactivated" if result["active"] else "deactivated (logged out on their next tap)"
+        flash(request, f"{result['name']} {state}", kind="ok")
+    return see_other(f"/staff#staff-{staff_id}")
+
+
+# ---------- backups ----------
+
+@router.get("/admin/backup")
+def download_backup(staff: CurrentStaff = Depends(manager_only)):
+    """A fresh, consistent copy of the whole database (audited). Deleted from disk once sent."""
+    path, filename = backups.fresh_backup_for_download(staff.id)
+    return FileResponse(path, filename=filename, media_type="application/vnd.sqlite3",
+                        background=BackgroundTask(path.unlink, missing_ok=True))

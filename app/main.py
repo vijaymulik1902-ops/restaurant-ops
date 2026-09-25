@@ -3,8 +3,10 @@
 Run with a SINGLE worker: the SSE broadcaster lives in this process's memory.
     uvicorn app.main:app --reload            (add --host 0.0.0.0 for phones on Wi-Fi)
 """
+import asyncio
 import json
 import logging
+import os
 from html import escape
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,6 +15,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -22,7 +25,7 @@ from app.db import init_db
 from app.migrations import ensure_schema
 from app.routers import auth as auth_routes
 from app.routers import counter, floor, kitchen, manager, orders, stream
-from app.services import ServiceError
+from app.services import ServiceError, backups
 from app.web import ROLE_HOME, back_url, flash, is_htmx, see_other
 
 log = logging.getLogger("app")
@@ -32,12 +35,35 @@ BUSY_MESSAGE = "The system is busy, please try again"
 BAD_INPUT_MESSAGE = "Something in that form wasn't valid, please check and try again"
 
 
+BACKUP_INTERVAL_SEC = 24 * 60 * 60
+
+
+async def _backup_now() -> None:
+    try:
+        await run_in_threadpool(backups.ensure_daily_backup)
+    except Exception:  # noqa: BLE001 - a failed backup must not take the restaurant down
+        log.exception("Daily backup failed")
+
+
+async def _daily_backups() -> None:
+    """After the startup backup: another every 24 hours."""
+    while True:
+        await asyncio.sleep(BACKUP_INTERVAL_SEC)
+        await _backup_now()
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     auth.check_production_settings()
     init_db()
     ensure_schema()
+    task = None
+    if os.getenv("BACKUPS_ENABLED", "1") == "1":
+        await _backup_now()  # today's backup, if missing, before serving (a copy takes seconds at most)
+        task = asyncio.create_task(_daily_backups())
     yield
+    if task:
+        task.cancel()
 
 
 app = FastAPI(title="Restaurant Ops", lifespan=lifespan, docs_url=None, redoc_url=None,

@@ -5,6 +5,7 @@ reloaded from the DB on every request, so deactivating someone logs them out
 on their very next tap.
 """
 import logging
+import os
 import secrets
 import threading
 import time
@@ -26,6 +27,13 @@ SESSION_MAX_AGE = 14 * 60 * 60  # one long shift
 MAX_WRONG_PINS = 5
 LOCKOUT_WINDOW_SEC = 5 * 60
 MAX_PIN_LEN = 8
+# PIN length by role (enforced when a PIN is set; login accepts 4-8 digits so older PINs work)
+PIN_LENGTH = {"manager": 6}
+DEFAULT_PIN_LENGTH = 4
+
+
+def pin_length_for(role: str) -> int:
+    return PIN_LENGTH.get(role, DEFAULT_PIN_LENGTH)
 
 # Monotonic clock, replaceable in tests
 _clock = time.monotonic
@@ -144,6 +152,55 @@ class _PinLimiter:
 limiter = _PinLimiter()
 
 
+# Per-IP limit on POST /login, on top of the per-staff lockout: stops one device (or bot)
+# from trying PINs across many names. Counts every attempt. Staff behind the restaurant's
+# Wi-Fi share one public IP, so keep the limit above the number of staff logging in at
+# shift start. Raise it for load tests (many simulated users on 127.0.0.1).
+LOGIN_IP_LIMIT = int(os.getenv("LOGIN_IP_LIMIT", "20"))
+LOGIN_IP_WINDOW_SEC = int(os.getenv("LOGIN_IP_WINDOW_SEC", "600"))
+
+
+class _IpLimiter:
+    """Sliding-window counter of login attempts per client IP (in memory, per process)."""
+
+    MAX_TRACKED = 10_000  # prune idle IPs beyond this so memory can't grow without bound
+
+    def __init__(self) -> None:
+        self._hits: dict[str, deque[float]] = {}
+        self._lock = threading.Lock()
+
+    def _recent(self, ip: str, at: float) -> deque[float]:
+        q = self._hits.setdefault(ip, deque())
+        while q and at - q[0] >= LOGIN_IP_WINDOW_SEC:
+            q.popleft()
+        return q
+
+    def attempt(self, ip: str) -> int:
+        """Record one attempt. Returns 0 if allowed, else seconds until the next is allowed."""
+        at = _clock()
+        with self._lock:
+            if len(self._hits) > self.MAX_TRACKED:
+                for key in [k for k, q in self._hits.items() if not q or at - q[-1] >= LOGIN_IP_WINDOW_SEC]:
+                    del self._hits[key]
+            q = self._recent(ip, at)
+            if len(q) >= LOGIN_IP_LIMIT:
+                return max(1, int(LOGIN_IP_WINDOW_SEC - (at - q[0])))
+            q.append(at)
+            return 0
+
+    def reset(self) -> None:
+        with self._lock:
+            self._hits.clear()
+
+
+ip_limiter = _IpLimiter()
+
+
+def client_ip(request: Request) -> str:
+    """The caller's IP. Behind Render's proxy, uvicorn --proxy-headers puts the real one here."""
+    return request.client.host if request.client else "unknown"
+
+
 def _to_current(staff: Staff) -> CurrentStaff:
     return CurrentStaff(staff.id, staff.name, staff.role, staff.section, staff.station)
 
@@ -154,7 +211,7 @@ def active_staff_names() -> list[dict]:
         rows = s.execute(
             select(Staff.name, Staff.role).where(Staff.active.is_(True)).order_by(Staff.role, Staff.name)
         ).all()
-    return [{"name": r.name, "role": r.role} for r in rows]
+    return [{"name": r.name, "role": r.role, "pin_length": pin_length_for(r.role)} for r in rows]
 
 
 def login(name: str, pin: str) -> CurrentStaff:

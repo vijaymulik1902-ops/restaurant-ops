@@ -1,0 +1,5 @@
+{#- A one-line explanation behind a small ⓘ. A real <button> so a tap focuses it on phones
+    (hover-only tooltips never appear on touch screens); CSS shows the text on hover/focus. -#}
+{% macro tip(text) -%}
+<button type="button" class="tip" aria-label="{{ text }}" data-tip="{{ text }}">ⓘ</button>
+{%- endmacro %}

@@ -20,7 +20,7 @@
       {% if staff.role in ('waiter', 'counter', 'manager') %}<a href="/floor">Floor</a>{% endif %}
       {% if staff.role in ('chef', 'manager') %}<a href="/kitchen">Kitchen</a><a href="/kitchen/availability">Dishes</a>{% endif %}
       {% if staff.role in ('counter', 'manager') %}<a href="/counter">Counter</a>{% endif %}
-      {% if staff.role == 'manager' %}<a href="/reports/sales">Sales report</a><a href="/expenses">Expenses</a><a href="/menu">Menu</a><a href="/audit">Audit</a>{% endif %}
+      {% if staff.role == 'manager' %}<a href="/reports/sales">Sales report</a><a href="/expenses">Expenses</a><a href="/menu">Menu</a><a href="/staff">Staff</a><a href="/audit">Audit</a>{% endif %}
       <span class="who">{{ staff.name }}</span>
       <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-btn">Log out</button></form>
     </div>

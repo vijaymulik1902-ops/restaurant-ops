@@ -26,14 +26,20 @@ DISH_ADDED = "dish_added"
 DISH_RENAMED = "dish_renamed"
 DISH_ARCHIVED = "dish_archived"
 DISH_RESTORED = "dish_restored"
+PIN_CHANGED = "pin_changed"
+STAFF_DEACTIVATED = "staff_deactivated"
+STAFF_REACTIVATED = "staff_reactivated"
+BACKUP_DOWNLOADED = "backup_downloaded"
 EXPENSE_ADDED = "expense_added"
 EXPENSE_DELETED = "expense_deleted"
 ACTIONS = (ITEM_CANCEL, ORDER_CANCEL, BILL_GENERATED, BILL_DISCOUNT, BILL_PAID, AVAILABILITY,
            PRICE_CHANGE, COST_CHANGE, DISH_ADDED, DISH_RENAMED, DISH_ARCHIVED, DISH_RESTORED,
-           EXPENSE_ADDED, EXPENSE_DELETED)
+           EXPENSE_ADDED, EXPENSE_DELETED, PIN_CHANGED, STAFF_DEACTIVATED, STAFF_REACTIVATED,
+           BACKUP_DOWNLOADED)
 
 PAGE_SIZE = 50
 _COST_KEYS = ("cost_paise", "unit_cost_paise")
+_SECRET_KEYS = ("pin", "pin_hash", "new_pin", "password")
 
 
 def _to_json(value: dict | None) -> str | None:
@@ -58,6 +64,8 @@ def record(s: Session, staff_id: int, action: str, entity: str, entity_id: int,
         raise ValueError(f"Unknown audit action {action!r}")
     if action != COST_CHANGE and (_has_cost(old) or _has_cost(new)):
         raise ValueError(f"Audit action {action!r} must not carry cost values")
+    if any(k in _SECRET_KEYS for v in (old or {}, new or {}) for k in v):
+        raise ValueError("Audit rows must never contain a PIN or its hash")
     s.add(AuditLog(at=now(), staff_id=staff_id, action=action, entity=entity, entity_id=entity_id,
                    old_value=_to_json(old), new_value=_to_json(new), reason=reason))
 
