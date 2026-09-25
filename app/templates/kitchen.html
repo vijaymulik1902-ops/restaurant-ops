@@ -3,7 +3,7 @@
 {% block page %}kitchen{% endblock %}
 {% block content %}
 <div class="bar">
-  <h2>{{ station|capitalize }}</h2>
+  <h2>{{ station|capitalize }} <a href="/kitchen/availability" class="small-link">Dishes on/off</a></h2>
   {% if staff.role == 'manager' %}
   <nav class="tabs">
     {% for st in stations %}

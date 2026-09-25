@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Dishes · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}availability{% endblock %}
+{% block content %}
+<div class="bar">
+  <h2>Dish availability{% if staff.role == 'chef' %} <small>{{ staff.station|capitalize }}</small>{% endif %}</h2>
+  <a href="/kitchen" role="button" class="secondary">Kitchen board</a>
+</div>
+<p class="muted">Turn a dish off when it runs out. Waiters see it greyed out at once. Orders already sent are not affected.</p>
+{% for station, dishes in dishes|groupby('station') %}
+<h3>{{ station|capitalize }}</h3>
+<ul class="dish-list">
+  {% for d in dishes %}
+  <li id="dish-{{ d.menu_item_id }}" class="dish{% if not d.available %} off{% endif %}">
+    <span class="dname">{{ d.name }}<small>{{ d.category }}</small></span>
+    <form method="post" action="/kitchen/availability/{{ d.menu_item_id }}" data-once>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="available" value="{{ '0' if d.available else '1' }}">
+      <button type="submit" class="{{ 'toggle-on' if d.available else 'toggle-off' }}"
+              aria-label="{{ d.name }} is {{ 'available' if d.available else 'not available' }}. Tap to change.">
+        {{ 'Available' if d.available else 'OFF' }}</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+{% endblock %}

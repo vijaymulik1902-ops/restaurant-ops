@@ -5,7 +5,10 @@ from sqlalchemy import func, select
 
 from app.db import read_session
 from app.models import PAYMENT_MODES, STATIONS, Bill, DiningTable, Order, OrderItem
-from app.services import business_day_bounds
+from app.db import now
+from app.services import ServiceError, business_day_bounds, business_day_of
+
+MIN_YEAR, MAX_YEAR = 2000, 2100
 
 
 def _avg_half_up(total: int, count: int) -> int:
@@ -13,14 +16,17 @@ def _avg_half_up(total: int, count: int) -> int:
     return (2 * total + count) // (2 * count) if count else 0
 
 
-def day_close(day: date) -> dict:
-    """End-of-day summary for one business day (see business_day_bounds).
+def day_close(day: date | None = None) -> dict:
+    """End-of-day summary for one business day (default: the current one).
 
     - Sales, bill count and average bill are based on bills PAID during the business day.
     - Cancelled items and kitchen times are based on items ORDERED during the business day.
     - Mismatch: a non-cancelled item on an order created during the business day
       that is still not paid at the moment this report runs.
     """
+    day = day or business_day_of(now())
+    if not MIN_YEAR <= day.year <= MAX_YEAR:
+        raise ServiceError(f"Pick a date between {MIN_YEAR} and {MAX_YEAR}")
     start, end = business_day_bounds(day)
     paid_today = (Bill.paid_at >= start, Bill.paid_at < end)
     ordered_today = (OrderItem.created_at >= start, OrderItem.created_at < end)

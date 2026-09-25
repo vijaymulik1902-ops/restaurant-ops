@@ -31,3 +31,8 @@ def test_list_tables_filters_by_section(db):
     assert [t["number"] for t in tables.list_tables("A")] == [1, 2]
     assert [t["number"] for t in tables.list_tables("B")] == [3]
     assert all(t["order_id"] is None for t in tables.list_tables())
+
+
+def test_open_table_rejects_absurd_guest_count(db):
+    with pytest.raises(ServiceError, match="exceed"):
+        tables.open_table(db["tables"][0], db["staff"]["waiter"], 10**30)

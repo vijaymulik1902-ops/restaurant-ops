@@ -16,7 +16,11 @@ Priority order: correctness > reliability > speed > looks. Keep it simple, no ne
 - Use `write_session()` for any change, `read_session()` for reads. Never create sessions another way.
 - Use `now()` from app.db for all timestamps.
 - Money is integer paise everywhere. Format as rupees only in templates.
-- Order has optimistic locking (`version`). Stale writes raise StaleDataError.
+- Order has optimistic locking (`version`) for EDITS and CANCELS only (cancel_order, generate_bill):
+  the form carries the version it showed and the service rejects a mismatch ("Order changed, reload").
+  APPENDS never check it: send_kot is append-only, so two waiters adding to the same order both succeed
+  (kot_id alone guards against duplicates). send_kot still bumps `version` so a pending cancel/bill
+  made from a screen that hasn't seen the new items is rejected. Stale ORM writes raise StaleDataError.
 - MenuItem.cost_paise = approx ingredient cost per plate. send_kot must snapshot it into
   OrderItem.unit_cost_paise, same as unit_price_paise.
 - Expense table = money spent ("amount invested"), entered by manager only.
@@ -85,3 +89,6 @@ Rules that keep cost data private and separate from prices:
 - After each task: run `pytest -q` and fix failures before reporting done.
 - Run locally: `uvicorn app.main:app --reload` ; phones on same Wi-Fi: add `--host 0.0.0.0`.
 - Ask before adding any dependency.
+- CSRF: every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`;
+  HTMX sends it as X-CSRF-Token via hx-headers on <body>. The app-wide dependency returns 403 otherwise.
+- Path ids use `Id` from app.web (bounded int) so bad ids give a friendly message, never a 500.

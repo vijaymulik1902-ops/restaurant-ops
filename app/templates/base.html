@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body data-page="{% block page %}{% endblock %}"
+      hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
+      {% if flash and flash.kind == 'sent' %}data-kot-sent{% endif %}
       {% if stream_url %}data-stream="{{ stream_url }}"{% endif %}
       {% if staff %}data-staff-id="{{ staff.id }}" data-role="{{ staff.role }}"{% endif %}>
   {% if staff %}
@@ -16,10 +18,10 @@
     <a class="brand" href="/">{{ RESTAURANT_NAME }}</a>
     <div class="links">
       {% if staff.role in ('waiter', 'counter', 'manager') %}<a href="/floor">Floor</a>{% endif %}
-      {% if staff.role in ('chef', 'manager') %}<a href="/kitchen">Kitchen</a>{% endif %}
+      {% if staff.role in ('chef', 'manager') %}<a href="/kitchen">Kitchen</a><a href="/kitchen/availability">Dishes</a>{% endif %}
       {% if staff.role in ('counter', 'manager') %}<a href="/counter">Counter</a>{% endif %}
       <span class="who">{{ staff.name }}</span>
-      <form method="post" action="/logout" class="inline"><button class="link-btn">Log out</button></form>
+      <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-btn">Log out</button></form>
     </div>
   </nav>
   <div id="live-status" class="live-status" hidden>Reconnecting…</div>

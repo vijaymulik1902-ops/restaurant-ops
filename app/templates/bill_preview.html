@@ -16,6 +16,8 @@
   <div class="flash flash-error">{{ order.in_kitchen }} item(s) still in the kitchen. Serve or cancel them before billing.</div>
   {% endif %}
   <form method="post" action="/counter/orders/{{ order.order_id }}/bill" class="bill-form" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="version" value="{{ order.version }}">
     <label>Discount (₹)
       <input type="text" name="discount" inputmode="decimal" placeholder="0" autocomplete="off">
     </label>

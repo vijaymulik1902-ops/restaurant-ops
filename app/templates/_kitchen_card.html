@@ -7,6 +7,7 @@
         hx-target="#item-{{ i.item_id }}" hx-swap="outerHTML" hx-disabled-elt="find button"
         method="post" action="/kitchen/items/{{ i.item_id }}/{{ 'start' if i.status == 'pending' else 'ready' }}">
     <input type="hidden" name="station" value="{{ station }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="kbtn">
   {% else %}
     <div class="kbtn">

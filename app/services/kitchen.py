@@ -4,11 +4,11 @@ from sqlalchemy.orm import defer
 
 from app.db import now, read_session, write_session
 from app.models import STATIONS, DiningTable, Kot, Order, OrderItem
-from app.services import Event, ServiceError, minutes_since
-from app.services.orders import clean_reason
+from app.services import Event, ServiceError, clean_reason, minutes_since
 from app.services.tables import get_active_staff, table_events
 
 LIVE_ITEM_STATUSES = ("pending", "preparing", "ready")
+FLOOR_ROLES = ("waiter", "counter", "manager")  # may serve and cancel pending items
 
 
 def _item_data(item: OrderItem, order: Order, table: DiningTable) -> dict:
@@ -77,10 +77,11 @@ def ready_item(item_id: int, station: str) -> tuple[dict, list[Event]]:
 
 
 def serve_item(item_id: int, waiter_id: int) -> tuple[dict, list[Event]]:
-    """ready -> served, sets served_at. Any active waiter may carry the plate."""
+    """ready -> served, sets served_at. Any active floor staff member may carry the plate."""
     with write_session() as s:
         item, order, table = _load(s, item_id)
-        get_active_staff(s, waiter_id)
+        if get_active_staff(s, waiter_id).role not in FLOOR_ROLES:
+            raise ServiceError("Only floor staff can mark items served")
         _require_status(item, "ready", "serve")
         item.status = "served"
         item.served_at = now()
@@ -94,6 +95,28 @@ def serve_item(item_id: int, waiter_id: int) -> tuple[dict, list[Event]]:
     ]
 
 
+def _check_cancel_item_allowed(name: str, item_status: str, order_status: str, role: str) -> None:
+    """Who may cancel an item, and when. Shared by cancel_item and can_cancel_item."""
+    if item_status in ("served", "cancelled"):
+        raise ServiceError(f"Cannot cancel {name}: it is {item_status}")
+    if order_status != "open":
+        raise ServiceError(f"Order is {order_status}, items can no longer be cancelled")
+    if item_status in ("preparing", "ready"):
+        if role != "manager":
+            raise ServiceError(f"{name} is already {item_status}; ask a manager to cancel")
+    elif role not in FLOOR_ROLES:
+        raise ServiceError("Only floor staff can cancel items")
+
+
+def can_cancel_item(item_status: str, order_status: str, role: str) -> bool:
+    """Whether cancel_item would be allowed (for showing the cancel icon)."""
+    try:
+        _check_cancel_item_allowed("item", item_status, order_status, role)
+    except ServiceError:
+        return False
+    return True
+
+
 def cancel_item(item_id: int, reason: str, by_staff_id: int) -> tuple[dict, list[Event]]:
     """Cancel an item that is not served yet. A reason is always required.
 
@@ -105,12 +128,7 @@ def cancel_item(item_id: int, reason: str, by_staff_id: int) -> tuple[dict, list
     with write_session() as s:
         item, order, table = _load(s, item_id)
         staff = get_active_staff(s, by_staff_id)
-        if item.status in ("served", "cancelled"):
-            raise ServiceError(f"Cannot cancel {item.name}: it is {item.status}")
-        if order.status != "open":
-            raise ServiceError(f"Order is {order.status}, items can no longer be cancelled")
-        if item.status in ("preparing", "ready") and staff.role != "manager":
-            raise ServiceError(f"{item.name} is already {item.status}; ask a manager to cancel")
+        _check_cancel_item_allowed(item.name, item.status, order.status, staff.role)
         item.status = "cancelled"
         item.cancel_reason = reason
         data = _item_data(item, order, table)

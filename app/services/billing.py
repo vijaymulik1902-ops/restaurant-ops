@@ -8,9 +8,11 @@ from app.config import GST_PERCENT
 from app.db import now, read_session, write_session
 from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem, Staff
 from app.services import Event, ServiceError
+from app.services.orders import check_version
 from app.services.tables import get_active_staff, table_events
 
 MANAGER_FREE_DISCOUNT_PERCENT = 10
+BILLING_ROLES = ("counter", "manager")
 
 
 def gst_for(taxable_paise: int, percent: int = GST_PERCENT) -> int:
@@ -35,13 +37,16 @@ def _bill_events(result: dict, table: DiningTable, order: Order) -> list[Event]:
             Event("counter", "bill", counter_data)]
 
 
-def generate_bill(order_id: int, discount_paise: int, by_staff_id: int) -> tuple[dict, list[Event]]:
+def generate_bill(order_id: int, discount_paise: int, by_staff_id: int,
+                  expected_version: int | None = None) -> tuple[dict, list[Event]]:
     """Bill an open order: order -> billed, table -> billing.
 
     No item may still be pending or preparing, and at least one item must be
     billable (otherwise the order should be cancelled). Subtotal counts non-cancelled items.
     A discount above 10% of the subtotal needs a manager. GST is charged on
     (subtotal - discount), rounded half up. Bill numbers are sequential with no gaps.
+    `expected_version` is the version the bill preview showed: if items were added
+    since, the bill is refused so the counter never charges for items it didn't see.
     """
     if not isinstance(discount_paise, int) or isinstance(discount_paise, bool) or discount_paise < 0:
         raise ServiceError("Discount must be zero or more")
@@ -52,7 +57,10 @@ def generate_bill(order_id: int, discount_paise: int, by_staff_id: int) -> tuple
             raise ServiceError("Order not found")
         if order.status != "open":
             raise ServiceError(f"Order is {order.status}, cannot generate a bill")
+        check_version(order, expected_version)
         staff = get_active_staff(s, by_staff_id)
+        if staff.role not in BILLING_ROLES:
+            raise ServiceError("Only the counter or a manager can generate bills")
 
         lines = s.execute(
             select(OrderItem.qty, OrderItem.unit_price_paise, OrderItem.status)

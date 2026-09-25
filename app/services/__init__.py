@@ -12,6 +12,8 @@ from datetime import date, datetime, time, timedelta
 
 from app.config import BUSINESS_DAY_START_HOUR
 
+MAX_REASON_LEN = 120
+
 
 class ServiceError(Exception):
     """A business rule was violated. `message` is shown to the user."""
@@ -46,3 +48,13 @@ def business_day_bounds(d: date) -> tuple[datetime, datetime]:
 def business_day_of(ts: datetime) -> date:
     """The business day a timestamp belongs to (00:15 belongs to the previous evening)."""
     return (ts - timedelta(hours=BUSINESS_DAY_START_HOUR)).date()
+
+
+def clean_reason(reason: str | None) -> str:
+    """A non-empty, trimmed cancel reason, or ServiceError."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise ServiceError("A reason is required to cancel")
+    if len(reason) > MAX_REASON_LEN:
+        raise ServiceError(f"Reason is too long (max {MAX_REASON_LEN} characters)")
+    return reason

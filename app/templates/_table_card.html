@@ -1,6 +1,7 @@
 {#- One floor/counter card. `view` is "floor" (waiter links) or "counter" (billing links). -#}
 {%- set alert_in = table_alert_in(t) -%}
-{%- if t.status == 'available' -%}
+{%- if t.status == 'available' or not t.order_id -%}
+  {#- no live order (available, or inconsistent data): the open page sorts it out -#}
   {%- set href = '/floor/tables/%d/open' % t.table_id -%}
 {%- elif view == 'counter' -%}
   {%- set href = '/counter/orders/%d' % t.order_id -%}

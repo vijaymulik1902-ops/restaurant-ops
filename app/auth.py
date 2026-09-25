@@ -5,6 +5,7 @@ reloaded from the DB on every request, so deactivating someone logs them out
 on their very next tap.
 """
 import logging
+import secrets
 import threading
 import time
 from collections import deque
@@ -15,7 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import SECRET_KEY
+from app.config import COOKIE_SECURE, SECRET_KEY
 from app.db import read_session
 from app.models import Staff
 
@@ -24,6 +25,7 @@ log = logging.getLogger(__name__)
 SESSION_MAX_AGE = 14 * 60 * 60  # one long shift
 MAX_WRONG_PINS = 5
 LOCKOUT_WINDOW_SEC = 5 * 60
+MAX_PIN_LEN = 8
 
 # Monotonic clock, replaceable in tests
 _clock = time.monotonic
@@ -50,14 +52,59 @@ class LoginRequired(Exception):
     """Raised by current_staff; main.py turns it into a redirect to /login."""
 
 
+DEV_SECRET_KEY = "dev-only-change-me"
+
+
+def check_production_settings(secret_key: str | None = None, cookie_secure: bool | None = None) -> None:
+    """Refuse to start in production (COOKIE_SECURE on) with the public dev SECRET_KEY:
+    anyone could forge a session cookie and log in as the manager."""
+    key = SECRET_KEY if secret_key is None else secret_key
+    secure = COOKIE_SECURE if cookie_secure is None else cookie_secure
+    if secure and key == DEV_SECRET_KEY:
+        raise RuntimeError("Set a real SECRET_KEY in .env before running with COOKIE_SECURE=true")
+
+
 def install(app: FastAPI) -> None:
     """Add the signed-cookie session middleware."""
-    if SECRET_KEY == "dev-only-change-me":
+    if SECRET_KEY == DEV_SECRET_KEY:
         log.warning("SECRET_KEY is the dev default; set SECRET_KEY in .env before real use")
     app.add_middleware(
         SessionMiddleware, secret_key=SECRET_KEY, max_age=SESSION_MAX_AGE,
-        same_site="lax", https_only=False,
+        same_site="lax", https_only=COOKIE_SECURE,
     )
+
+
+# ---------- CSRF ----------
+# One random token per session. Every POST must echo it back, either as the
+# X-CSRF-Token header (HTMX, set via hx-headers on <body>) or as the csrf_token
+# form field (plain forms). A page from another site can't read it, so it can't forge a POST.
+CSRF_SESSION_KEY = "csrf"
+CSRF_FORM_FIELD = "csrf_token"
+CSRF_HEADER = "X-CSRF-Token"
+UNSAFE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
+
+
+def csrf_token(request: Request) -> str:
+    """This session's CSRF token, created on first use."""
+    token = request.session.get(CSRF_SESSION_KEY)
+    if not isinstance(token, str) or not token:
+        token = secrets.token_urlsafe(32)
+        request.session[CSRF_SESSION_KEY] = token
+    return token
+
+
+async def csrf_protect(request: Request) -> None:
+    """App-wide dependency: reject unsafe requests without the session's token (403)."""
+    if request.method not in UNSAFE_METHODS:
+        return
+    expected = request.session.get(CSRF_SESSION_KEY)
+    sent = request.headers.get(CSRF_HEADER)
+    if not sent:
+        field = (await request.form()).get(CSRF_FORM_FIELD)
+        sent = field if isinstance(field, str) else None
+    if not expected or not sent or not secrets.compare_digest(str(expected), sent):
+        raise HTTPException(status_code=403,
+                            detail="This page has expired. Go back, reload it and try again.")
 
 
 class _PinLimiter:
@@ -122,7 +169,9 @@ def login(name: str, pin: str) -> CurrentStaff:
     locked = limiter.seconds_locked(current.id)
     if locked:
         raise AuthError(f"Too many wrong PINs. Try again in {(locked + 59) // 60} min")
-    if not (pin or "").isdigit() or not bcrypt.checkpw(pin.encode(), pin_hash.encode()):
+    # bcrypt rejects inputs over 72 bytes, so check the shape before hashing
+    well_formed = isinstance(pin, str) and pin.isascii() and pin.isdigit() and 4 <= len(pin) <= MAX_PIN_LEN
+    if not well_formed or not bcrypt.checkpw(pin.encode(), pin_hash.encode()):
         limiter.fail(current.id)
         raise AuthError("Wrong name or PIN")
     limiter.reset(current.id)
@@ -130,8 +179,11 @@ def login(name: str, pin: str) -> CurrentStaff:
 
 
 def start_session(request: Request, staff: CurrentStaff) -> None:
+    token = request.session.get(CSRF_SESSION_KEY)
     request.session.clear()
     request.session["staff_id"] = staff.id
+    if token:
+        request.session[CSRF_SESSION_KEY] = token  # keeps other open tabs' forms valid
 
 
 def end_session(request: Request) -> None:

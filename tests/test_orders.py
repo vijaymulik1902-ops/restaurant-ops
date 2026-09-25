@@ -24,9 +24,9 @@ def test_same_kot_id_twice_creates_one_kot(db):
     order_id = _open(db)
     kot_id = new_kot_id()
     lines = [(db["menu"]["naan"], 2, None)]
-    first, first_events = orders.send_kot(order_id, kot_id, db["staff"]["waiter"], lines, 1)
+    first, first_events = orders.send_kot(order_id, kot_id, db["staff"]["waiter"], lines)
     # A retry carries the old version; it must still succeed as a no-op
-    again, again_events = orders.send_kot(order_id, kot_id, db["staff"]["waiter"], lines, 1)
+    again, again_events = orders.send_kot(order_id, kot_id, db["staff"]["waiter"], lines)
 
     assert again["kot_id"] == first["kot_id"] and again["kot_number"] == first["kot_number"]
     assert again["duplicate"] is True and first["duplicate"] is False
@@ -41,30 +41,51 @@ def test_kot_id_from_another_order_rejected(db):
     other_order = _open(db, table_index=1)
     with pytest.raises(ServiceError):
         orders.send_kot(other_order, kot["kot_id"], db["staff"]["waiter"],
-                        [(db["menu"]["dal"], 1, None)], 1)
+                        [(db["menu"]["dal"], 1, None)])
 
 
-def test_stale_version_rejected(db):
+def test_two_waiters_appending_from_same_starting_page_both_succeed(db):
+    """Appends never conflict: no version check, each KOT id is its own batch."""
     order_id = _open(db)
     first, _ = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"],
-                               [(db["menu"]["naan"], 1, None)], 1)
-    assert first["order_version"] == 2
+                               [(db["menu"]["naan"], 1, None)])
+    second, _ = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter2"],
+                                [(db["menu"]["dal"], 1, None)])
+    assert (first["kot_number"], second["kot_number"]) == (1, 2)
+    assert [i["name"] for i in orders.get_order(order_id)["items"]] == ["Butter Naan", "Dal Tadka"]
+    # Each append still bumps the version, so edits/cancels made from an older screen are caught
+    assert orders.get_order(order_id)["version"] == 3
+
+
+def test_cancel_order_from_stale_screen_rejected(db):
+    order_id = _open(db)
+    seen_version = orders.get_order(order_id)["version"]
+    orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter2"], [(db["menu"]["dal"], 1, None)])
     with pytest.raises(ServiceError, match="Order changed, reload"):
-        orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"],
-                        [(db["menu"]["dal"], 1, None)], 1)
-    assert len(orders.get_order(order_id)["items"]) == 1
+        orders.cancel_order(order_id, "guests left", db["staff"]["manager"], expected_version=seen_version)
+    assert orders.get_order(order_id)["status"] == "open"
+    orders.cancel_order(order_id, "guests left", db["staff"]["manager"],
+                        expected_version=orders.get_order(order_id)["version"])
+    assert orders.get_order(order_id)["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("bad", ["", "not-a-uuid", "x" * 5000, "1; DROP TABLE kots"])
+def test_malformed_kot_id_rejected(db, bad):
+    order_id = _open(db)
+    with pytest.raises(ServiceError, match="KOT id"):
+        orders.send_kot(order_id, bad, db["staff"]["waiter"], [(db["menu"]["naan"], 1, None)])
 
 
 def test_unavailable_item_and_bad_qty_rejected(db):
     order_id = _open(db)
     waiter = db["staff"]["waiter"]
     with pytest.raises(ServiceError, match="not available"):
-        orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["off"], 1, None)], 1)
+        orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["off"], 1, None)])
     for bad_qty in (0, -1):
         with pytest.raises(ServiceError, match="Quantity"):
-            orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["naan"], bad_qty, None)], 1)
+            orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["naan"], bad_qty, None)])
     with pytest.raises(ServiceError):
-        orders.send_kot(order_id, new_kot_id(), waiter, [], 1)
+        orders.send_kot(order_id, new_kot_id(), waiter, [])
     # Nothing was written by the rejected attempts
     assert orders.get_order(order_id)["items"] == []
     assert orders.get_order(order_id)["version"] == 1
@@ -88,7 +109,7 @@ def test_kot_events_per_station_and_counter_without_cost(db):
     order_id = _open(db)
     lines = [(db["menu"]["naan"], 1, "extra butter"), (db["menu"]["dal"], 1, None),
              (db["menu"]["lassi"], 2, None)]
-    _, events = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"], lines, 1)
+    _, events = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"], lines)
     by_type = sorted((e.type, e.channel) for e in events)
     assert by_type == [
         ("kot", "station:bar"), ("kot", "station:kitchen"), ("kot", "station:tandoor"),
@@ -102,19 +123,19 @@ def test_kot_numbers_continue_past_midnight_and_reset_at_business_day_start(db, 
     order_id = _open(db)
     waiter = db["staff"]["waiter"]
 
-    def send(version):
-        kot, _ = orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["naan"], 1, None)], version)
+    def send():
+        kot, _ = orders.send_kot(order_id, new_kot_id(), waiter, [(db["menu"]["naan"], 1, None)])
         return kot["kot_number"]
 
-    assert send(1) == 1                        # 12:00, 25 Sep
+    assert send() == 1                        # 12:00, 25 Sep
     clock.advance(hours=11, minutes=50)
-    assert send(2) == 2                        # 23:50, 25 Sep
+    assert send() == 2                        # 23:50, 25 Sep
     clock.advance(minutes=20)
-    assert send(3) == 3                        # 00:10, 26 Sep -> same business day
+    assert send() == 3                        # 00:10, 26 Sep -> same business day
     clock.advance(hours=3, minutes=49)
-    assert send(4) == 4                        # 03:59, 26 Sep -> same business day
+    assert send() == 4                        # 03:59, 26 Sep -> same business day
     clock.advance(minutes=1)
-    assert send(5) == 1                        # 04:00, 26 Sep -> new business day
+    assert send() == 1                        # 04:00, 26 Sep -> new business day
 
 
 def test_business_day_helpers():

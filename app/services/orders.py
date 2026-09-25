@@ -1,36 +1,47 @@
 """Orders: sending KOTs to the kitchen and reading an order back."""
+import uuid
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import defer
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db import now, read_session, write_session
 from app.models import Bill, DiningTable, Kot, MenuItem, Order, OrderItem, Staff
-from app.services import Event, ServiceError, business_day_bounds, business_day_of
+from app.services import Event, ServiceError, business_day_bounds, business_day_of, clean_reason
+from app.services.kitchen import can_cancel_item
 from app.services.menu import list_menu
 from app.services.tables import get_active_staff, table_events
 
 MAX_NOTE_LEN = 120
 MAX_QTY = 99
-MAX_REASON_LEN = 120
 
 
 def _bump_version(order: Order) -> None:
     """Force an UPDATE of the orders row so SQLAlchemy increments `version`.
 
-    Adding items only inserts order_items rows; the order row itself is untouched,
-    so without this a stale order screen could still send a KOT on the old version.
+    Adding items only inserts order_items rows; the order row itself is untouched.
+    Appends never check the version (two waiters adding at once must both succeed),
+    but edits/cancels do: bumping here makes a cancel or bill made from a screen
+    that hasn't seen the new items fail with "Order changed, reload".
     """
     flag_modified(order, "status")
 
 
-def clean_reason(reason: str | None) -> str:
-    """A non-empty, trimmed cancel reason, or ServiceError."""
-    reason = (reason or "").strip()
-    if not reason:
-        raise ServiceError("A reason is required to cancel")
-    if len(reason) > MAX_REASON_LEN:
-        raise ServiceError(f"Reason is too long (max {MAX_REASON_LEN} characters)")
-    return reason
+def check_version(order: Order, expected_version: int | None) -> None:
+    """Optimistic lock for edits/cancels: reject if the order changed since it was shown.
+
+    Routers always pass the version from the form; None (internal callers) skips the check.
+    """
+    if expected_version is not None and order.version != expected_version:
+        raise ServiceError("Order changed, reload")
+
+
+def _valid_kot_id(kot_id: str) -> str:
+    """KOT ids are server-generated UUIDs; anything else is a tampered or broken form."""
+    try:
+        return str(uuid.UUID(str(kot_id)))
+    except ValueError:
+        raise ServiceError("Invalid KOT id, reload the order screen")
 
 
 def _validate_lines(items: list[tuple[int, int, str | None]]) -> list[tuple[int, int, str | None]]:
@@ -65,17 +76,16 @@ def send_kot(
     kot_id: str,
     waiter_id: int,
     items: list[tuple[int, int, str | None]],
-    expected_version: int,
 ) -> tuple[dict, list[Event]]:
     """Send a batch of items to the kitchen as one KOT.
 
     Idempotent: resending an existing kot_id for the same order returns that KOT
-    with no changes and no events. Otherwise the order must be open and at
-    `expected_version`. Name, station, price and cost are snapshotted from the menu.
-    Returns (kot info, events for each station involved + counter).
+    with no changes and no events. Appending never conflicts, so there is no
+    version check: two waiters adding to the same order both succeed. The order
+    must be open. Name, station, price and cost are snapshotted from the menu.
+    Returns (kot info, events for each station involved + counter + floor).
     """
-    if not kot_id:
-        raise ServiceError("Missing KOT id, reload the order screen")
+    kot_id = _valid_kot_id(kot_id)
 
     with write_session() as s:
         existing = s.get(Kot, kot_id)
@@ -90,8 +100,6 @@ def send_kot(
             raise ServiceError("Order not found")
         if order.status != "open":
             raise ServiceError(f"Order is {order.status}, cannot add items")
-        if order.version != expected_version:
-            raise ServiceError("Order changed, reload")
         get_active_staff(s, waiter_id)
 
         lines = _validate_lines(items)
@@ -175,8 +183,12 @@ def can_cancel_order(order: dict, staff_id: int, role: str) -> bool:
     return True
 
 
-def cancel_order(order_id: int, reason: str, by_staff_id: int) -> tuple[dict, list[Event]]:
+def cancel_order(order_id: int, reason: str, by_staff_id: int,
+                 expected_version: int | None = None) -> tuple[dict, list[Event]]:
     """Cancel an open order and free its table.
+
+    `expected_version` is the version the screen showed; if a KOT was added since,
+    the cancel is rejected so nobody cancels items they haven't seen.
 
     - No KOT sent yet: the order's own waiter, counter or manager may cancel.
     - Something was sent to the kitchen: manager only, and every item not yet
@@ -191,6 +203,7 @@ def cancel_order(order_id: int, reason: str, by_staff_id: int) -> tuple[dict, li
             raise ServiceError("Order not found")
         if order.status != "open":
             raise ServiceError(f"Order is {order.status}, cannot cancel")
+        check_version(order, expected_version)
         staff = get_active_staff(s, by_staff_id)
 
         has_kots = s.scalar(select(Kot.id).where(Kot.order_id == order.id).limit(1)) is not None
@@ -280,12 +293,14 @@ def get_order(order_id: int) -> dict:
     }
 
 
-def order_screen(order_id: int, staff_id: int, role: str) -> dict:
-    """Everything the waiter's order screen needs: the order, the menu, and whether
-    the cancel button should be shown. Read-only."""
+def order_screen(order_id: int, staff_id: int, role: str, include_menu: bool = True) -> dict:
+    """Everything the order screen needs: the order (each item flagged with whether this
+    user may cancel it), the menu, and whether the cancel-order button is shown. Read-only."""
     order = get_order(order_id)
+    for item in order["items"]:
+        item["can_cancel"] = can_cancel_item(item["status"], order["status"], role)
     return {
         "order": order,
-        "menu": list_menu() if order["status"] == "open" else [],
+        "menu": list_menu() if include_menu and order["status"] == "open" else [],
         "can_cancel": can_cancel_order(order, staff_id, role),
     }

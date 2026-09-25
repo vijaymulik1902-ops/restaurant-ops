@@ -5,6 +5,7 @@
 <h1 class="center">{{ RESTAURANT_NAME }}</h1>
 {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
 <form method="post" action="/login" id="login-form" class="login">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <fieldset class="staff-pick">
     <legend>Who are you?</legend>
     {% for s in staff_list %}

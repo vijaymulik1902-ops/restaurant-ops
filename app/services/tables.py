@@ -6,6 +6,7 @@ from app.models import DiningTable, Kot, Order, OrderItem, Staff
 from app.services import Event, ServiceError, minutes_since
 
 LIVE_ORDER_STATUSES = ("open", "billed")
+MAX_GUESTS = 50
 
 
 def table_events(table: DiningTable, order_id: int | None) -> list[Event]:
@@ -37,8 +38,10 @@ def open_table(table_id: int, waiter_id: int, guest_count: int) -> tuple[dict, l
 
     The table must be available. Returns ({"order_id", "table_number"}, events).
     """
-    if not isinstance(guest_count, int) or guest_count < 1:
+    if not isinstance(guest_count, int) or isinstance(guest_count, bool) or guest_count < 1:
         raise ServiceError("Guest count must be at least 1")
+    if guest_count > MAX_GUESTS:
+        raise ServiceError(f"Guest count cannot exceed {MAX_GUESTS}")
 
     with write_session() as s:
         table = s.get(DiningTable, table_id)

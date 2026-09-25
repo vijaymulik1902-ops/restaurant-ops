@@ -5,6 +5,7 @@
 <h2>Table {{ t.number }} <small>({{ t.capacity }} seats)</small></h2>
 <p>How many guests?</p>
 <form method="post" action="/floor/tables/{{ t.table_id }}/open" class="guest-grid" data-once>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% for n in guest_options %}
   <button type="submit" name="guest_count" value="{{ n }}"
           class="{% if n > t.capacity %}secondary{% endif %}">{{ n }}</button>

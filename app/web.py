@@ -1,13 +1,15 @@
 """Shared helpers for routers: templates, flash messages, redirects, event publishing."""
 from pathlib import Path
+from typing import Annotated
 from urllib.parse import urlsplit
 
+from fastapi import Path as PathParam
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app import config, events
-from app.auth import CurrentStaff
+from app.auth import CurrentStaff, csrf_token
 from app.services import Event
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
@@ -16,6 +18,10 @@ ROLE_HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "man
 FLOOR_ROLES = ("waiter", "counter", "manager")
 KITCHEN_ROLES = ("chef", "manager")
 COUNTER_ROLES = ("counter", "manager")
+CANCEL_REASONS = ("Customer changed mind", "Wrong item entered", "Out of stock")
+
+# Path ids must fit SQLite's INTEGER; a huge number would otherwise crash the query
+Id = Annotated[int, PathParam(ge=1, le=2**31 - 1)]
 
 
 def rupees(paise: int | None) -> str:
@@ -53,6 +59,7 @@ templates.env.globals.update(
     BUSINESS_DAY_START_HOUR=config.BUSINESS_DAY_START_HOUR,
     WARN_KITCHEN_SEC=config.WARN_KITCHEN_MIN * 60,
     table_alert_in=table_alert_in,
+    CANCEL_REASONS=CANCEL_REASONS,
 )
 
 
@@ -63,12 +70,14 @@ def flash(request: Request, message: str, kind: str = "error") -> None:
 def render(request: Request, name: str, staff: CurrentStaff | None = None,
            status_code: int = 200, **context):
     """Render a template with the logged-in staff and any pending flash message."""
-    context.update(staff=staff, flash=request.session.pop("flash", None))
+    session_flash = request.session.pop("flash", None)
+    context.update(staff=staff, flash=context.get("flash") or session_flash, csrf_token=csrf_token(request))
     return templates.TemplateResponse(request, name, context, status_code=status_code)
 
 
 def partial(request: Request, name: str, **context):
     """Render an HTMX fragment (no flash handling)."""
+    context.update(csrf_token=csrf_token(request))
     return templates.TemplateResponse(request, name, context)
 
 
@@ -86,7 +95,10 @@ def back_url(request: Request, fallback: str = "/") -> str:
     if not referer:
         return fallback
     parts = urlsplit(referer)
-    path = parts.path if parts.path.startswith("/") and not parts.path.startswith("//") else fallback
+    path = parts.path
+    # Browsers treat "//x" and "/\\x" as another host; only plain site paths are allowed
+    if not path.startswith("/") or path.startswith("//") or "\\" in path:
+        return fallback
     return path + (f"?{parts.query}" if parts.query else "")
 
 

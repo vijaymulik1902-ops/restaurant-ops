@@ -153,3 +153,40 @@ table.mismatch td { color: #ffbcbc; background: #3a1010; }
 @media (min-width: 900px) {
   .grid-cards { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
 }
+
+/* KOT sent confirmation */
+.flash-sent { background: #123821; color: #d4f7e0; border: 1px solid var(--ok); }
+
+/* Single-item cancel */
+.item-cancel { margin: 0; }
+.item-cancel summary { list-style: none; display: inline-flex; align-items: center; justify-content: center;
+                       min-width: var(--tap); min-height: var(--tap); border-radius: .5rem;
+                       color: var(--red); border: 1px solid #5c1414; font-weight: 800; cursor: pointer; }
+.item-cancel summary::-webkit-details-marker { display: none; }
+.item-cancel summary::after { display: none; }
+.item-cancel[open] { flex-basis: 100%; }
+.item-cancel form { margin-top: .5rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+.chip { margin: 0; }
+.chip input { position: absolute; opacity: 0; }
+.chip span { display: inline-flex; align-items: center; min-height: var(--tap); padding: .3rem .8rem;
+             border-radius: 2rem; background: #1c2530; border: 2px solid #2a3441; cursor: pointer; }
+.chip input:checked + span { border-color: var(--red); background: #3a1010; }
+.chip input:focus-visible + span { outline: 2px solid var(--pico-primary); }
+
+/* Unavailable dishes on the order screen: greyed and untappable */
+.menu-row.unavailable { opacity: .45; }
+.menu-row.unavailable .stepper, .menu-row.unavailable .note { pointer-events: none; }
+.na-label { display: block; font-weight: 700; }
+
+/* Dish availability page */
+.small-link { font-size: .9rem; font-weight: normal; margin-left: .5rem; }
+.dish-list { list-style: none; padding: 0; }
+.dish { display: flex; align-items: center; justify-content: space-between; gap: .5rem; list-style: none;
+        padding: .4rem 0; border-bottom: 1px solid #1f2731; }
+.dish form { margin: 0; }
+.dish .dname small { display: block; color: var(--muted); }
+.dish.off .dname { color: var(--muted); text-decoration: line-through; }
+.toggle-on, .toggle-off { width: 8rem; margin: 0; font-weight: 800; }
+.toggle-on { background: var(--ok); border-color: var(--ok); }
+.toggle-off { background: #4a1616; border-color: var(--red); color: #ffd6d6; }

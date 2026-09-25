@@ -129,3 +129,36 @@ def test_kitchen_and_cancel_paths_never_load_cost(db):
     finally:
         event.remove(write_engine, "before_cursor_execute", spy)
     assert seen == []
+
+
+@pytest.mark.parametrize("item_status, role, allowed", [
+    ("pending", "waiter", True), ("pending", "counter", True), ("pending", "manager", True),
+    ("pending", "chef", False),
+    ("preparing", "waiter", False), ("preparing", "counter", False), ("preparing", "manager", True),
+    ("ready", "waiter", False), ("ready", "manager", True),
+    ("served", "manager", False), ("cancelled", "manager", False),
+])
+def test_can_cancel_item_matches_access_matrix(item_status, role, allowed):
+    assert kitchen.can_cancel_item(item_status, "open", role) is allowed
+
+
+def test_can_cancel_item_false_once_billed():
+    assert kitchen.can_cancel_item("pending", "billed", "manager") is False
+
+
+def test_chef_cannot_cancel_or_serve(db):
+    item_id = _item(db)
+    with pytest.raises(ServiceError, match="floor staff"):
+        kitchen.cancel_item(item_id, "no", db["staff"]["chef_tandoor"])
+    kitchen.start_item(item_id, "tandoor")
+    kitchen.ready_item(item_id, "tandoor")
+    with pytest.raises(ServiceError, match="floor staff"):
+        kitchen.serve_item(item_id, db["staff"]["chef_tandoor"])
+    assert _status(item_id) == "ready"
+
+
+def test_cancelled_item_leaves_kitchen_board_with_event(db):
+    item_id = _item(db)
+    _, events = kitchen.cancel_item(item_id, "Out of stock", db["staff"]["waiter"])
+    assert kitchen.live_items("tandoor") == []
+    assert any(e.channel == "station:tandoor" and e.data["status"] == "cancelled" for e in events)

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from app.auth import CurrentStaff, require_role
 from app.services import tables
-from app.web import FLOOR_ROLES, partial, publish, render, see_other
+from app.web import FLOOR_ROLES, Id, partial, publish, render, see_other
 
 router = APIRouter()
 floor_staff = require_role(*FLOOR_ROLES)
@@ -37,13 +37,13 @@ def floor_board(request: Request, all: bool = False, view: str = "floor",
 
 
 @router.get("/floor/tables/{table_id}/card")
-def table_card(request: Request, table_id: int, view: str = "floor",
+def table_card(request: Request, table_id: Id, view: str = "floor",
                staff: CurrentStaff = Depends(floor_staff)):
     return partial(request, "_table_card.html", t=tables.get_table(table_id), view=_view(view))
 
 
 @router.get("/floor/tables/{table_id}/open")
-def open_table_page(request: Request, table_id: int, staff: CurrentStaff = Depends(floor_staff)):
+def open_table_page(request: Request, table_id: Id, staff: CurrentStaff = Depends(floor_staff)):
     t = tables.get_table(table_id)
     if t["status"] != "available" and t["order_id"]:
         return see_other(f"/orders/{t['order_id']}")
@@ -51,7 +51,7 @@ def open_table_page(request: Request, table_id: int, staff: CurrentStaff = Depen
 
 
 @router.post("/floor/tables/{table_id}/open")
-def open_table_submit(table_id: int, guest_count: int = Form(0),
+def open_table_submit(table_id: Id, guest_count: int = Form(0),
                       staff: CurrentStaff = Depends(floor_staff)):
     result, events = tables.open_table(table_id, staff.id, guest_count)
     publish(events)

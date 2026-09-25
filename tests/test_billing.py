@@ -76,12 +76,10 @@ def test_billed_order_rejects_new_kot_and_rebill(db):
     order_id = _billable(db, [("naan", 1)])
     billing.generate_bill(order_id, 0, db["staff"]["counter"])
     assert _table(1)["status"] == "billing"
-    version = orders.get_order(order_id)["version"]
     from conftest import new_kot_id
 
     with pytest.raises(ServiceError, match="billed"):
-        orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"],
-                        [(db["menu"]["naan"], 1, None)], version)
+        orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"], [(db["menu"]["naan"], 1, None)])
     with pytest.raises(ServiceError):
         billing.generate_bill(order_id, 0, db["staff"]["counter"])
 
@@ -142,3 +140,23 @@ def test_order_without_items_cannot_be_billed(db):
     opened, _ = tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)
     with pytest.raises(ServiceError, match="Nothing to bill"):
         billing.generate_bill(opened["order_id"], 0, db["staff"]["counter"])
+
+
+def test_bill_from_stale_preview_rejected(db):
+    order_id = _billable(db, [("naan", 1)])
+    seen_version = orders.get_order(order_id)["version"]
+    from conftest import new_kot_id
+
+    kot, _ = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"], [(db["menu"]["lassi"], 1, None)])
+    serve_all(db, order_id)
+    with pytest.raises(ServiceError, match="Order changed, reload"):
+        billing.generate_bill(order_id, 0, db["staff"]["counter"], expected_version=seen_version)
+    bill, _ = billing.generate_bill(order_id, 0, db["staff"]["counter"],
+                                    expected_version=orders.get_order(order_id)["version"])
+    assert bill["subtotal_paise"] == 4500 + 7000
+
+
+def test_only_counter_or_manager_can_bill(db):
+    order_id = _billable(db, [("naan", 1)])
+    with pytest.raises(ServiceError, match="counter or a manager"):
+        billing.generate_bill(order_id, 0, db["staff"]["waiter"])

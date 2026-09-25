@@ -10,6 +10,8 @@ load_dotenv(BASE_DIR / ".env")
 
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "restaurant.db"))
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+# Send the session cookie over HTTPS only. Keep false for plain-HTTP LAN use; true in production.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").strip().lower() in ("1", "true", "yes", "on")
 RESTAURANT_NAME = os.getenv("RESTAURANT_NAME", "Demo Restaurant")
 GST_PERCENT = int(os.getenv("GST_PERCENT", "5"))
 TIMEZONE = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))

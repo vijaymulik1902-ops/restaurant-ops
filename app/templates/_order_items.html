@@ -10,8 +10,24 @@
       <span class="badge st-{{ i.status }}">{{ i.status }}</span>
       {% if i.status == 'ready' %}
       <form method="post" action="/items/{{ i.item_id }}/serve" class="inline" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="serve-btn">Mark served</button>
       </form>
+      {% endif %}
+      {% if i.can_cancel %}
+      <details class="item-cancel">
+        <summary aria-label="Cancel {{ i.name }}" title="Cancel item">✕</summary>
+        <form method="post" action="/items/{{ i.item_id }}/cancel" data-once>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="chips" role="radiogroup" aria-label="Reason">
+            {% for r in CANCEL_REASONS %}
+            <label class="chip"><input type="radio" name="reason_choice" value="{{ r }}"><span>{{ r }}</span></label>
+            {% endfor %}
+          </div>
+          <input type="text" name="reason" maxlength="120" placeholder="Or type a reason">
+          <button type="submit" class="danger">Cancel {{ i.qty }} × {{ i.name }}</button>
+        </form>
+      </details>
       {% endif %}
     </li>
     {% endfor %}

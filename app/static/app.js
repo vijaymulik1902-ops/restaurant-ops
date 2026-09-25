@@ -60,7 +60,8 @@
     if (msg) toast(msg, 'error');
   });
   body.addEventListener('htmx:responseError', function (e) {
-    toast(e.detail.xhr.status === 403 ? 'Not allowed for your role' : 'Something went wrong, try again', 'error');
+    if (e.detail.xhr.getResponseHeader('HX-Trigger')) return; // server already sent a "flash" message
+    toast(e.detail.xhr.status === 403 ? 'Not allowed' : 'Something went wrong, try again', 'error');
   });
   body.addEventListener('htmx:sendError', function () { toast('No connection to the server', 'error'); });
 
@@ -101,9 +102,29 @@
       htmx.ajax('GET', el.dataset.listUrl, { target: el, swap: 'innerHTML' });
     });
   }
+  var orderRefreshTimer = null;
   function refreshOrder(orderId) {
     var el = document.getElementById('order-items');
-    if (el && orderId && el.dataset.orderId === String(orderId)) refreshCard(el);
+    if (!el || !orderId || el.dataset.orderId !== String(orderId)) return;
+    // Don't yank the list away while someone is picking a cancel reason; try again shortly
+    if (el.querySelector('details[open]') || el.contains(document.activeElement)) {
+      clearTimeout(orderRefreshTimer);
+      orderRefreshTimer = setTimeout(function () { refreshOrder(orderId); }, 4000);
+      return;
+    }
+    refreshCard(el);
+  }
+
+  function setDishAvailable(d) {
+    var row = document.querySelector('.menu-row[data-menu-id="' + d.menu_item_id + '"]');
+    if (!row) return;
+    row.classList.toggle('unavailable', !d.available);
+    row.querySelectorAll('input, button').forEach(function (el) { el.disabled = !d.available; });
+    var label = row.querySelector('.na-label');
+    if (label) label.hidden = d.available;
+    if (!d.available && row.querySelector('.stepper input').value !== '0') {
+      toast(d.name + ' just became unavailable', 'error');
+    }
   }
   function kitchenBoard(channel) {
     var board = document.querySelector('.kboard');
@@ -139,6 +160,7 @@
       refreshOrder(d.order_id);
     },
     order: function (d) { refreshOrder(d.order_id); },
+    menu: function (d) { setDishAvailable(d); },
     bill: function () { /* table events already refresh the card */ }
   };
 
@@ -202,8 +224,38 @@
     });
   });
 
-  /* ---------- order screen: steppers, search, notes ---------- */
-  function updateRow(input) {
+  /* ---------- order screen: steppers, search, notes, draft ---------- */
+  // The waiter's picks are kept in sessionStorage (this tab only) so tapping "Mark served",
+  // cancelling an item, or a failed send never wipes a half-built order. Cleared once a KOT is sent.
+  var kotForm = document.getElementById('kot-form');
+  var draftKey = kotForm && ('draft:' + kotForm.dataset.draftKey);
+  function readDraft() {
+    try { return JSON.parse(sessionStorage.getItem(draftKey) || '{}'); } catch (e) { return {}; }
+  }
+  function saveDraft() {
+    if (!draftKey) return;
+    var draft = {};
+    kotForm.querySelectorAll('.stepper input, input.note').forEach(function (i) {
+      if (i.value && i.value !== '0') draft[i.name] = i.value;
+    });
+    try { sessionStorage.setItem(draftKey, JSON.stringify(draft)); } catch (e) { /* private mode */ }
+  }
+  function restoreDraft() {
+    if (!draftKey) return;
+    if (body.hasAttribute('data-kot-sent')) {
+      try { sessionStorage.removeItem(draftKey); } catch (e) { /* ignore */ }
+      return;
+    }
+    var draft = readDraft();
+    Object.keys(draft).forEach(function (name) {
+      var input = kotForm.elements[name];
+      // The server's re-rendered values (after a failed send) win over the draft
+      if (input && (!input.value || input.value === '0')) input.value = draft[name];
+    });
+    kotForm.querySelectorAll('.stepper input').forEach(function (i) { updateRow(i, true); });
+  }
+
+  function updateRow(input, skipSave) {
     var row = input.closest('.menu-row');
     var qty = parseInt(input.value, 10) || 0;
     if (row) {
@@ -217,6 +269,7 @@
     });
     var label = document.getElementById('send-count');
     if (label) label.textContent = count ? '(' + count + ')' : '';
+    if (!skipSave) saveDraft();
   }
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('[data-step]');
@@ -228,6 +281,7 @@
   });
   document.addEventListener('input', function (e) {
     if (e.target.matches('.stepper input')) updateRow(e.target);
+    if (e.target.matches('#kot-form input.note')) saveDraft();
     if (e.target.id === 'menu-search') {
       var q = e.target.value.trim().toLowerCase();
       document.querySelectorAll('.menu-row').forEach(function (row) {
@@ -239,6 +293,8 @@
       });
     }
   });
+
+  restoreDraft();
 
   /* ---------- counter: status filter ---------- */
   document.addEventListener('click', function (e) {

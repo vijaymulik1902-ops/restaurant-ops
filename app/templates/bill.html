@@ -13,6 +13,7 @@
 {% else %}
   <h3>Payment received by</h3>
   <form method="post" action="/counter/bills/{{ bill.bill_id }}/pay" class="pay-grid" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% for mode in modes %}
     <button type="submit" name="payment_mode" value="{{ mode }}" class="big">{{ 'UPI' if mode == 'upi' else mode|capitalize }}</button>
     {% endfor %}

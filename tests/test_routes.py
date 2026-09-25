@@ -10,15 +10,27 @@ from app.models import Kot, Staff
 from app.services import billing, orders, tables
 from conftest import TEST_PIN, open_and_order, serve_all
 
-NAMES = {"waiter": "Rahul", "chef": "Suresh", "counter": "Counter", "manager": "Manager"}
+NAMES = {"waiter": "Rahul", "waiter2": "Sneha", "chef": "Suresh", "counter": "Counter", "manager": "Manager"}
 HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/counter"}
+ROLES = ("waiter", "chef", "counter", "manager")
+
+
+def csrf_from(html: str) -> str:
+    return re.search(r'name="csrf_token" value="([^"]+)"', html).group(1)
 
 
 def login(role: str) -> TestClient:
+    """A logged-in client that sends the CSRF header on every request, like HTMX does."""
     c = TestClient(app, follow_redirects=False)
+    token = csrf_from(c.get("/login").text)
+    c.headers["X-CSRF-Token"] = token
     resp = c.post("/login", data={"name": NAMES[role], "pin": TEST_PIN})
     assert resp.status_code == 303, resp.text
     return c
+
+
+def form_field(html: str, name: str) -> str:
+    return re.search(rf'name="{name}" value="([^"]*)"', html).group(1)
 
 
 @pytest.fixture
@@ -35,7 +47,7 @@ def test_health(db):
     assert TestClient(app).get("/health").json() == {"ok": True}
 
 
-@pytest.mark.parametrize("role", list(NAMES))
+@pytest.mark.parametrize("role", ROLES)
 def test_login_redirects_by_role(db, role):
     c = login(role)
     resp = c.get("/")
@@ -46,6 +58,7 @@ def test_login_page_lists_staff_and_wrong_pin_is_rejected(db):
     c = TestClient(app, follow_redirects=False)
     page = c.get("/login")
     assert page.status_code == 200 and "Rahul" in page.text and "keypad" in page.text
+    c.headers["X-CSRF-Token"] = csrf_from(page.text)
     resp = c.post("/login", data={"name": "Rahul", "pin": "0000"})
     assert resp.status_code == 401 and "Wrong name or PIN" in resp.text
     assert c.get("/").headers["location"] == "/login"
@@ -67,10 +80,11 @@ SCREENS = {
     "/counter/orders/{order_id}": {"counter", "manager"},
     "/counter/bills/{bill_id}": {"counter", "manager"},
     "/counter/bills/{bill_id}/print": {"counter", "manager"},
+    "/kitchen/availability": {"chef", "manager"},
 }
 
 
-@pytest.mark.parametrize("role", list(NAMES))
+@pytest.mark.parametrize("role", ROLES)
 def test_each_screen_allows_its_roles_and_403s_others(world, role):
     c = login(role)
     for template, allowed in SCREENS.items():
@@ -87,6 +101,10 @@ def test_each_screen_allows_its_roles_and_403s_others(world, role):
     ("waiter", "post", "/counter/orders/{order_id}/bill", {"discount": "0"}),
     ("chef", "post", "/counter/bills/{bill_id}/pay", {"payment_mode": "cash"}),
     ("waiter", "post", "/counter/bills/{bill_id}/pay", {"payment_mode": "cash"}),
+    ("waiter", "post", "/kitchen/availability/1", {"available": "0"}),
+    ("counter", "post", "/kitchen/availability/1", {"available": "0"}),
+    ("chef", "post", "/items/1/cancel", {"reason": "x"}),
+    ("chef", "post", "/items/1/serve", {}),
 ])
 def test_actions_enforce_access_matrix(world, role, method, path, data):
     c = login(role)
@@ -114,9 +132,9 @@ def test_send_kot_form_twice_with_same_kot_id_creates_one_kot(db):
     order_id = opened["order_id"]
     c = login("waiter")
     html = c.get(f"/orders/{order_id}").text
-    kot_id = re.search(r'name="kot_id" value="([^"]+)"', html).group(1)
-    version = re.search(r'name="version" value="(\d+)"', html).group(1)
-    form = {"kot_id": kot_id, "version": version, f"qty_{db['menu']['naan']}": "2",
+    assert 'name="version"' not in html.split('id="kot-form"')[1].split("</form>")[0]
+    kot_id = form_field(html, "kot_id")
+    form = {"kot_id": kot_id, f"qty_{db['menu']['naan']}": "2",
             f"note_{db['menu']['naan']}": "extra butter", f"qty_{db['menu']['dal']}": "0"}
 
     before = _kot_count()
@@ -129,15 +147,54 @@ def test_send_kot_form_twice_with_same_kot_id_creates_one_kot(db):
     assert [(i["name"], i["qty"], i["note"]) for i in order["items"]] == [("Butter Naan", 2, "extra butter")]
 
 
-def test_stale_kot_form_shows_flash(db):
-    kot = open_and_order(db, [("naan", 1)])  # version is now 2
+def test_two_waiters_same_starting_page_both_succeed(db):
+    opened, _ = tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)
+    url = f"/orders/{opened['order_id']}"
+    rahul, sneha = login("waiter"), login("waiter2")
+    page_a, page_b = rahul.get(url).text, sneha.get(url).text  # both loaded before either sends
+    ra = rahul.post(f"{url}/kot", data={"kot_id": form_field(page_a, "kot_id"), f"qty_{db['menu']['naan']}": "1"})
+    rb = sneha.post(f"{url}/kot", data={"kot_id": form_field(page_b, "kot_id"), f"qty_{db['menu']['dal']}": "1"})
+    assert ra.status_code == rb.status_code == 303
+    assert sorted(i["name"] for i in orders.get_order(opened["order_id"])["items"]) == ["Butter Naan", "Dal Tadka"]
+    assert _kot_count() == 2
+
+
+def test_failed_kot_rerenders_with_picks_and_notes_preserved(db):
+    from app.services import menu
+
+    opened, _ = tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)
+    url = f"/orders/{opened['order_id']}"
     c = login("waiter")
-    url = f"/orders/{kot['order_id']}"
-    resp = c.post(f"{url}/kot", data={"kot_id": "11111111-1111-1111-1111-111111111111", "version": "1",
-                                      f"qty_{db['menu']['dal']}": "1"},
-                  headers={"referer": f"http://testserver{url}"})
-    assert resp.status_code == 303 and resp.headers["location"] == url
-    assert "Order changed, reload" in c.get(url).text
+    page = c.get(url).text
+    naan, dal = db["menu"]["naan"], db["menu"]["dal"]
+    menu.set_available(dal, False, db["staff"]["manager"])  # runs out while the waiter is picking
+    resp = c.post(f"{url}/kot", data={
+        "kot_id": form_field(page, "kot_id"),
+        f"qty_{naan}": "3", f"note_{naan}": "well done",
+        f"qty_{dal}": "1", f"note_{dal}": "no garlic",
+    })
+    assert resp.status_code == 422
+    html = resp.text
+    assert "Dal Tadka is not available" in html
+    assert re.search(rf'name="qty_{naan}" value="3"', html)
+    assert re.search(rf'name="note_{naan}" class="note" maxlength="120"\s+value="well done"', html)
+    # A fresh KOT id (nothing was saved), and the unavailable dish is rendered disabled
+    assert form_field(html, "kot_id") != form_field(page, "kot_id")
+    assert re.search(rf'name="qty_{dal}" value="1"[^>]*disabled', html)
+    assert _kot_count() == 0
+
+
+@pytest.mark.parametrize("data", [
+    {"qty_1": "abc"}, {"qty_1": "-5"}, {"qty_1": "100000"}, {"qty_99999999999999999999": "1"},
+    {"qty_1": "1", "note_1": "x" * 5000}, {"qty_1": "9" * 5000},
+])
+def test_bad_kot_input_is_a_friendly_rerender_not_a_crash(db, data):
+    opened, _ = tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)
+    url = f"/orders/{opened['order_id']}"
+    c = login("waiter")
+    resp = c.post(f"{url}/kot", data={"kot_id": form_field(c.get(url).text, "kot_id"), **data})
+    assert resp.status_code == 422 and 'class="flash flash-error"' in resp.text
+    assert _kot_count() == 0
 
 
 def test_htmx_service_error_returns_toast_without_swap(world):
@@ -167,9 +224,7 @@ def test_full_service_flow_through_screens(db):
     order_url = resp.headers["location"]
     order_id = int(order_url.rsplit("/", 1)[1])
     html = waiter.get(order_url).text
-    form = {"kot_id": re.search(r'name="kot_id" value="([^"]+)"', html).group(1),
-            "version": re.search(r'name="version" value="(\d+)"', html).group(1),
-            f"qty_{db['menu']['naan']}": "2"}
+    form = {"kot_id": form_field(html, "kot_id"), f"qty_{db['menu']['naan']}": "2"}
     waiter.post(f"{order_url}/kot", data=form)
 
     # Chef sees it (no prices), taps start then ready; HTMX gets the fresh card back
@@ -186,7 +241,9 @@ def test_full_service_flow_through_screens(db):
     waiter.post(f"/items/{item_id}/serve")
 
     # Counter bills with a ₹9 discount (10% of ₹90) and takes UPI
-    resp = counter.post(f"/counter/orders/{order_id}/bill", data={"discount": "9"})
+    preview = counter.get(f"/counter/orders/{order_id}").text
+    resp = counter.post(f"/counter/orders/{order_id}/bill",
+                        data={"discount": "9", "version": form_field(preview, "version")})
     bill_url = resp.headers["location"]
     bill_page = counter.get(bill_url).text
     assert "GST 5%" in bill_page and "₹85.05" in bill_page  # 8100 + 405 GST
@@ -209,6 +266,7 @@ def test_cancel_button_only_when_allowed(world):
     url = f"/orders/{world['order_id']}"  # has a KOT -> manager only
     assert "Cancel order" not in waiter.get(url).text
     assert "Cancel order" in manager.get(url).text
-    resp = manager.post(f"{url}/cancel", data={"reason": "guests left"})
+    version = form_field(manager.get(url).text.split(f'action="{url}/cancel"')[1], "version")
+    resp = manager.post(f"{url}/cancel", data={"reason": "guests left", "version": version})
     assert resp.status_code == 303
     assert orders.get_order(world["order_id"])["status"] == "cancelled"

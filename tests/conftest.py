@@ -21,9 +21,8 @@ TEST_PIN = "1234"
 PIN_HASH = bcrypt.hashpw(TEST_PIN.encode(), bcrypt.gensalt(rounds=4)).decode()
 
 
-@pytest.fixture(autouse=True)
-def db():
-    """Fresh schema and minimal data for every test (no bcrypt, so it stays fast)."""
+def reset_and_seed() -> dict:
+    """Drop and recreate every table, then add minimal staff, 3 tables and a 4-dish menu."""
     Base.metadata.drop_all(write_engine)
     init_db()
     with write_session() as s:
@@ -55,8 +54,15 @@ def db():
             "tables": [t.id for t in tables],
             "menu": {k: v.id for k, v in menu.items()},
         }
+    return ids
+
+
+@pytest.fixture(autouse=True)
+def db():
+    """Fresh schema and minimal data for every test (no bcrypt, so it stays fast)."""
     from app.auth import limiter
 
+    ids = reset_and_seed()
     limiter.reset()
     yield ids
     write_engine.dispose()
@@ -97,7 +103,7 @@ def open_and_order(ids: dict, lines: list[tuple[str, int]], table_index: int = 0
 
     opened, _ = tables.open_table(ids["tables"][table_index], ids["staff"]["waiter"], 2)
     items = [(ids["menu"][key], qty, None) for key, qty in lines]
-    kot, _ = orders.send_kot(opened["order_id"], new_kot_id(), ids["staff"]["waiter"], items, 1)
+    kot, _ = orders.send_kot(opened["order_id"], new_kot_id(), ids["staff"]["waiter"], items)
     return kot
 
 
