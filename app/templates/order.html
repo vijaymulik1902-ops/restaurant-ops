@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Table {{ order.table_number }} · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}order{% endblock %}
+{% block content %}
+<div class="bar">
+  <h2>Table {{ order.table_number }}
+    <small>{{ order.guest_count }} guests · {{ order.waiter_name }}</small></h2>
+  <span class="badge st-{{ order.status }}">{{ order.status }}</span>
+</div>
+
+<section data-list-url="/orders/{{ order.order_id }}/items" id="order-items-wrap">
+  {% include "_order_items.html" %}
+</section>
+
+{% if order.status == 'open' %}
+<form method="post" action="/orders/{{ order.order_id }}/kot" id="kot-form" class="kot-form" data-once>
+  <input type="hidden" name="kot_id" value="{{ kot_id }}">
+  <input type="hidden" name="version" value="{{ order.version }}">
+  <input type="search" id="menu-search" placeholder="Search menu…" aria-label="Search menu" autocomplete="off">
+
+  {% for category, dishes in menu|groupby('category') %}
+  <details class="menu-cat" open>
+    <summary>{{ category }}</summary>
+    {% for m in dishes %}
+    <div class="menu-row{% if not m.available %} unavailable{% endif %}" data-name="{{ m.name|lower }}">
+      <div class="menu-name">{{ m.name }}<small>{{ m.price_paise|rupees }}</small></div>
+      {% if m.available %}
+      <div class="stepper">
+        <button type="button" class="secondary" data-step="-1" aria-label="Less {{ m.name }}">−</button>
+        <input type="number" name="qty_{{ m.menu_item_id }}" value="0" min="0" max="99"
+               inputmode="numeric" aria-label="{{ m.name }} quantity">
+        <button type="button" data-step="1" aria-label="More {{ m.name }}">+</button>
+      </div>
+      <input type="text" name="note_{{ m.menu_item_id }}" class="note" maxlength="120"
+             placeholder="Note (less spicy, no onion…)" hidden>
+      {% else %}
+      <span class="muted">Not available</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </details>
+  {% endfor %}
+
+  <div class="sticky-send">
+    <button type="submit" class="big" id="send-btn">Send to kitchen <span id="send-count"></span></button>
+  </div>
+</form>
+{% endif %}
+
+{% if can_cancel %}
+<details class="danger-zone">
+  <summary>Cancel order</summary>
+  <form method="post" action="/orders/{{ order.order_id }}/cancel" data-once>
+    <input type="text" name="reason" required maxlength="120" placeholder="Reason (required)">
+    <button type="submit" class="danger big">Cancel this order</button>
+  </form>
+</details>
+{% endif %}
+<p><a href="/floor" role="button" class="secondary outline big">Back to floor</a></p>
+{% endblock %}

@@ -89,8 +89,12 @@ def test_kot_events_per_station_and_counter_without_cost(db):
     lines = [(db["menu"]["naan"], 1, "extra butter"), (db["menu"]["dal"], 1, None),
              (db["menu"]["lassi"], 2, None)]
     _, events = orders.send_kot(order_id, new_kot_id(), db["staff"]["waiter"], lines, 1)
-    channels = sorted(e.channel for e in events)
-    assert channels == ["counter", "station:bar", "station:kitchen", "station:tandoor"]
+    by_type = sorted((e.type, e.channel) for e in events)
+    assert by_type == [
+        ("kot", "station:bar"), ("kot", "station:kitchen"), ("kot", "station:tandoor"),
+        ("order", "counter"),
+        ("table", "counter"), ("table", "section:A"),  # floor card refresh
+    ]
     assert not any(_has_cost_key(e.data) for e in events)
 
 

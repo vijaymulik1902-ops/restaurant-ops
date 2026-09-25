@@ -1,0 +1,17 @@
+<table class="bill-lines">
+  <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    {% for ln in bill.lines %}
+    <tr><td>{{ ln.name }}</td><td class="num">{{ ln.qty }}</td>
+        <td class="num">{{ ln.unit_price_paise|rupees }}</td><td class="num">{{ ln.line_total_paise|rupees }}</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><td colspan="3">Subtotal</td><td class="num">{{ bill.subtotal_paise|rupees }}</td></tr>
+    {% if bill.discount_paise %}
+    <tr><td colspan="3">Discount</td><td class="num">−{{ bill.discount_paise|rupees }}</td></tr>
+    {% endif %}
+    <tr><td colspan="3">GST {{ bill.gst_percent }}%</td><td class="num">{{ bill.gst_paise|rupees }}</td></tr>
+    <tr class="grand"><td colspan="3">Total</td><td class="num">{{ bill.total_paise|rupees }}</td></tr>
+  </tfoot>
+</table>

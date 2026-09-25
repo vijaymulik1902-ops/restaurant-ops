@@ -1,8 +1,8 @@
 """Tables: seating guests and the floor overview."""
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 
 from app.db import now, read_session, write_session
-from app.models import DiningTable, Order, Staff
+from app.models import DiningTable, Kot, Order, OrderItem, Staff
 from app.services import Event, ServiceError, minutes_since
 
 LIVE_ORDER_STATUSES = ("open", "billed")
@@ -63,13 +63,24 @@ def open_table(table_id: int, waiter_id: int, guest_count: int) -> tuple[dict, l
     return result, events
 
 
-def list_tables(section: str | None = None) -> list[dict]:
-    """All tables (optionally one section) with live order, waiter and time in current state."""
+def list_tables(section: str | None = None, table_id: int | None = None) -> list[dict]:
+    """All tables (or one section / one table) with live order, waiter and timers.
+
+    Each row also says whether a KOT has been sent and how long the oldest ready
+    item has been waiting, which drive the red "needs attention" state on the floor.
+    """
+    has_kot = select(Kot.id).where(Kot.order_id == Order.id).exists()
+    oldest_ready = (
+        select(func.min(OrderItem.ready_at))
+        .where(OrderItem.order_id == Order.id, OrderItem.status == "ready")
+        .scalar_subquery()
+    )
     stmt = (
         select(
             DiningTable.id, DiningTable.number, DiningTable.capacity, DiningTable.section,
             DiningTable.status, DiningTable.status_since,
             Order.id.label("order_id"), Order.guest_count, Staff.name.label("waiter_name"),
+            has_kot.label("has_kot"), oldest_ready.label("oldest_ready_at"),
         )
         .outerjoin(
             Order,
@@ -80,22 +91,46 @@ def list_tables(section: str | None = None) -> list[dict]:
     )
     if section is not None:
         stmt = stmt.where(DiningTable.section == section)
+    if table_id is not None:
+        stmt = stmt.where(DiningTable.id == table_id)
 
     current = now()
     with read_session() as s:
         rows = s.execute(stmt).all()
-    return [
-        {
-            "table_id": r.id,
-            "number": r.number,
-            "capacity": r.capacity,
-            "section": r.section,
-            "status": r.status,
-            "status_since": r.status_since,
-            "minutes_in_status": minutes_since(r.status_since, current),
-            "order_id": r.order_id,
-            "guest_count": r.guest_count,
-            "waiter_name": r.waiter_name,
-        }
-        for r in rows
-    ]
+    return [_table_row(r, current) for r in rows]
+
+
+def _seconds_since(start, current) -> int | None:
+    return None if start is None else max(0, int((current - start).total_seconds()))
+
+
+def _table_row(r, current) -> dict:
+    return {
+        "table_id": r.id,
+        "number": r.number,
+        "capacity": r.capacity,
+        "section": r.section,
+        "status": r.status,
+        "status_since": r.status_since,
+        "minutes_in_status": minutes_since(r.status_since, current),
+        "seconds_in_status": _seconds_since(r.status_since, current),
+        "order_id": r.order_id,
+        "guest_count": r.guest_count,
+        "waiter_name": r.waiter_name,
+        "has_kot": bool(r.order_id) and bool(r.has_kot),
+        "ready_waiting_seconds": _seconds_since(r.oldest_ready_at, current),
+    }
+
+
+def get_table(table_id: int) -> dict:
+    """One floor row (same shape as list_tables)."""
+    rows = list_tables(table_id=table_id)
+    if not rows:
+        raise ServiceError("Table not found")
+    return rows[0]
+
+
+def list_sections() -> list[str]:
+    """Distinct table sections, sorted."""
+    with read_session() as s:
+        return list(s.scalars(select(DiningTable.section).distinct().order_by(DiningTable.section)))

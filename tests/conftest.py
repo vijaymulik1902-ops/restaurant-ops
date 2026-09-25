@@ -9,12 +9,16 @@ _TMP = Path(tempfile.mkdtemp(prefix="restaurant-tests-"))
 os.environ["DB_PATH"] = str(_TMP / "test.db")
 os.environ["GST_PERCENT"] = "5"
 
+import bcrypt  # noqa: E402
 import pytest  # noqa: E402
 
 from app.db import Base, init_db, write_engine, write_session  # noqa: E402
 from app.models import DiningTable, MenuItem, Staff  # noqa: E402
 
 SERVICE_MODULES = ("tables", "orders", "kitchen", "billing", "reports")
+TEST_PIN = "1234"
+# Low bcrypt cost keeps the suite fast; every test staff member uses TEST_PIN
+PIN_HASH = bcrypt.hashpw(TEST_PIN.encode(), bcrypt.gensalt(rounds=4)).decode()
 
 
 @pytest.fixture(autouse=True)
@@ -24,12 +28,12 @@ def db():
     init_db()
     with write_session() as s:
         staff = {
-            "waiter": Staff(name="Rahul", role="waiter", section="A", pin_hash="x"),
-            "waiter2": Staff(name="Sneha", role="waiter", section="B", pin_hash="x"),
-            "chef_tandoor": Staff(name="Suresh", role="chef", station="tandoor", pin_hash="x"),
-            "chef_kitchen": Staff(name="Mahesh", role="chef", station="kitchen", pin_hash="x"),
-            "counter": Staff(name="Counter", role="counter", pin_hash="x"),
-            "manager": Staff(name="Manager", role="manager", pin_hash="x"),
+            "waiter": Staff(name="Rahul", role="waiter", section="A", pin_hash=PIN_HASH),
+            "waiter2": Staff(name="Sneha", role="waiter", section="B", pin_hash=PIN_HASH),
+            "chef_tandoor": Staff(name="Suresh", role="chef", station="tandoor", pin_hash=PIN_HASH),
+            "chef_kitchen": Staff(name="Mahesh", role="chef", station="kitchen", pin_hash=PIN_HASH),
+            "counter": Staff(name="Counter", role="counter", pin_hash=PIN_HASH),
+            "manager": Staff(name="Manager", role="manager", pin_hash=PIN_HASH),
         }
         s.add_all(staff.values())
         tables = [DiningTable(number=n, capacity=4, section="A" if n <= 2 else "B") for n in (1, 2, 3)]
@@ -51,6 +55,9 @@ def db():
             "tables": [t.id for t in tables],
             "menu": {k: v.id for k, v in menu.items()},
         }
+    from app.auth import limiter
+
+    limiter.reset()
     yield ids
     write_engine.dispose()
 

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Bill · Table {{ order.table_number }}{% endblock %}
+{% block page %}bill-preview{% endblock %}
+{% block content %}
+<div class="bar">
+  <h2>Table {{ order.table_number }} <small>{{ order.guest_count }} guests · {{ order.waiter_name }}</small></h2>
+  <span class="badge st-{{ order.status }}">{{ order.status }}</span>
+</div>
+
+<section data-list-url="/orders/{{ order.order_id }}/items">
+  {% include "_order_items.html" %}
+</section>
+
+{% if order.status == 'open' %}
+  {% if order.in_kitchen %}
+  <div class="flash flash-error">{{ order.in_kitchen }} item(s) still in the kitchen. Serve or cancel them before billing.</div>
+  {% endif %}
+  <form method="post" action="/counter/orders/{{ order.order_id }}/bill" class="bill-form" data-once>
+    <label>Discount (₹)
+      <input type="text" name="discount" inputmode="decimal" placeholder="0" autocomplete="off">
+    </label>
+    <small class="muted">Up to 10% of the subtotal; more needs a manager. GST is added on the discounted amount.</small>
+    <button type="submit" class="big">Generate bill</button>
+  </form>
+{% endif %}
+<p><a href="/counter" role="button" class="secondary outline big">Back to counter</a></p>
+{% endblock %}

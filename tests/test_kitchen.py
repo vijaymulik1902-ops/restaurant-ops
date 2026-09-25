@@ -101,3 +101,31 @@ def test_live_items_oldest_first_with_age(db, clock):
     assert [i["item_id"] for i in kitchen.live_items("tandoor")] == [first]
     assert len(kitchen.live_items("kitchen")) == 1
     assert kot["order_id"]
+
+
+def test_kitchen_and_cancel_paths_never_load_cost(db):
+    """Cost is deferred with raiseload; the flows below would raise if they touched it."""
+    from sqlalchemy import event
+
+    from app.db import write_engine
+
+    seen = []
+
+    def spy(conn, cursor, statement, *args):
+        if "unit_cost_paise" in statement and statement.lstrip().upper().startswith("SELECT"):
+            seen.append(statement)
+
+    event.listen(write_engine, "before_cursor_execute", spy)
+    try:
+        item_id = _item(db)
+        kitchen.start_item(item_id, "tandoor")
+        kitchen.ready_item(item_id, "tandoor")
+        kitchen.serve_item(item_id, db["staff"]["waiter"])
+        other = open_and_order(db, [("dal", 1)], table_index=1)
+        dal = orders.get_order(other["order_id"])["items"][0]["item_id"]
+        kitchen.cancel_item(dal, "no dal", db["staff"]["waiter"])
+        third = open_and_order(db, [("naan", 1)], table_index=2)
+        orders.cancel_order(third["order_id"], "left", db["staff"]["manager"])
+    finally:
+        event.remove(write_engine, "before_cursor_execute", spy)
+    assert seen == []

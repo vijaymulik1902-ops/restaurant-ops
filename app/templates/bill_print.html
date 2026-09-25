@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bill {{ bill.bill_no }}</title>
+  <style>
+    body { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; color: #000; background: #fff;
+           max-width: 80mm; margin: 0 auto; padding: 8px; }
+    h1 { font-size: 16px; text-align: center; margin: 0 0 4px; }
+    .meta { text-align: center; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 2px 0; text-align: left; vertical-align: top; }
+    .num { text-align: right; white-space: nowrap; }
+    thead tr, tfoot tr:first-child { border-bottom: 1px dashed #000; }
+    tfoot tr:first-child td { border-top: 1px dashed #000; }
+    .grand td { font-weight: bold; font-size: 15px; border-top: 1px dashed #000; }
+    .thanks { text-align: center; margin-top: 12px; }
+    .no-print { margin-top: 16px; text-align: center; }
+    .no-print button { font-size: 16px; padding: 10px 24px; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>{{ RESTAURANT_NAME }}</h1>
+  <div class="meta">
+    Bill No: {{ bill.bill_no }} · Table {{ bill.table_number }}<br>
+    {{ bill.created_at.strftime('%d-%m-%Y %H:%M') }}
+    {% if bill.paid_at %}<br>Paid: {{ bill.payment_mode|upper }}{% endif %}
+  </div>
+  {% include "_bill_body.html" %}
+  <p class="thanks">Thank you! Visit again.</p>
+  <div class="no-print"><button onclick="window.print()">Print</button></div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Bill {{ bill.bill_no }} · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}bill{% endblock %}
+{% block content %}
+<div class="bar">
+  <h2>Bill #{{ bill.bill_no }} <small>Table {{ bill.table_number }}</small></h2>
+  <span class="badge st-{{ 'paid' if bill.paid_at else 'billed' }}">{{ 'paid' if bill.paid_at else 'unpaid' }}</span>
+</div>
+{% include "_bill_body.html" %}
+
+{% if bill.paid_at %}
+  <div class="flash flash-ok">Paid by {{ bill.payment_mode|upper }} at {{ bill.paid_at.strftime('%H:%M') }}</div>
+{% else %}
+  <h3>Payment received by</h3>
+  <form method="post" action="/counter/bills/{{ bill.bill_id }}/pay" class="pay-grid" data-once>
+    {% for mode in modes %}
+    <button type="submit" name="payment_mode" value="{{ mode }}" class="big">{{ 'UPI' if mode == 'upi' else mode|capitalize }}</button>
+    {% endfor %}
+  </form>
+{% endif %}
+<div class="pay-grid">
+  <a href="/counter/bills/{{ bill.bill_id }}/print" target="_blank" role="button" class="secondary big">Print bill</a>
+  <a href="/counter" role="button" class="secondary outline big">Back to counter</a>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}{{ RESTAURANT_NAME }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/pico.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="{% block page %}{% endblock %}"
+      {% if stream_url %}data-stream="{{ stream_url }}"{% endif %}
+      {% if staff %}data-staff-id="{{ staff.id }}" data-role="{{ staff.role }}"{% endif %}>
+  {% if staff %}
+  <nav class="topbar">
+    <a class="brand" href="/">{{ RESTAURANT_NAME }}</a>
+    <div class="links">
+      {% if staff.role in ('waiter', 'counter', 'manager') %}<a href="/floor">Floor</a>{% endif %}
+      {% if staff.role in ('chef', 'manager') %}<a href="/kitchen">Kitchen</a>{% endif %}
+      {% if staff.role in ('counter', 'manager') %}<a href="/counter">Counter</a>{% endif %}
+      <span class="who">{{ staff.name }}</span>
+      <form method="post" action="/logout" class="inline"><button class="link-btn">Log out</button></form>
+    </div>
+  </nav>
+  <div id="live-status" class="live-status" hidden>Reconnecting…</div>
+  {% endif %}
+  <div id="flash">
+    {% if flash %}<div class="flash flash-{{ flash.kind }}" role="alert">{{ flash.message }}</div>{% endif %}
+  </div>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <div id="toasts" aria-live="assertive"></div>
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

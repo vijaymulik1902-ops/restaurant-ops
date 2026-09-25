@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Day close · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}day-close{% endblock %}
+{% block content %}
+{% set r = report %}
+<div class="bar">
+  <h2>Day close <small>{{ r.date.strftime('%a %d %b %Y') }}</small></h2>
+  <form method="get" action="/reports/day-close" class="inline">
+    <input type="date" name="day" value="{{ r.date.isoformat() }}" aria-label="Business day" onchange="this.form.submit()">
+  </form>
+</div>
+<p class="muted">Business day runs {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }} to {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }} next day.</p>
+
+<div class="stats">
+  <article><small>Total sales</small><strong>{{ r.total_sales_paise|rupees }}</strong></article>
+  <article><small>Bills</small><strong>{{ r.bill_count }}</strong></article>
+  <article><small>Average bill</small><strong>{{ r.average_bill_paise|rupees }}</strong></article>
+</div>
+
+<h3>By payment mode</h3>
+<table>
+  {% for mode, amount in r.sales_by_mode_paise.items() %}
+  <tr><td>{{ 'UPI' if mode == 'upi' else mode|capitalize }}</td><td class="num">{{ amount|rupees }}</td></tr>
+  {% endfor %}
+</table>
+
+<h3 class="{% if r.mismatches %}danger-text{% endif %}">Mismatches ({{ r.mismatches|length }})</h3>
+{% if r.mismatches %}
+<p class="danger-text">Items ordered this business day on orders that are not paid yet.</p>
+<table class="mismatch">
+  <thead><tr><th>Table</th><th>Item</th><th>Item status</th><th>Order</th></tr></thead>
+  {% for m in r.mismatches %}
+  <tr><td>{{ m.table_number }}</td><td>{{ m.qty }} × {{ m.name }}</td><td>{{ m.item_status }}</td>
+      <td>#{{ m.order_id }} {{ m.order_status }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="ok-text">None. Every ordered item is on a paid bill.</p>
+{% endif %}
+
+<h3>Cancelled items ({{ r.cancelled_items|length }})</h3>
+{% if r.cancelled_items %}
+<table>
+  <thead><tr><th>Table</th><th>Item</th><th class="num">Value</th><th>Reason</th></tr></thead>
+  {% for c in r.cancelled_items %}
+  <tr><td>{{ c.table_number }}</td><td>{{ c.qty }} × {{ c.name }}</td>
+      <td class="num">{{ c.value_paise|rupees }}</td><td>{{ c.reason }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<p class="muted">None.</p>{% endif %}
+
+<h3>Average kitchen time</h3>
+<table>
+  {% for st, mins in r.avg_kitchen_minutes.items() %}
+  <tr><td>{{ st|capitalize }}</td><td class="num">{% if mins is none %}—{% else %}{{ mins }} min{% endif %}</td></tr>
+  {% endfor %}
+</table>
+<p><a href="/counter" role="button" class="secondary outline big">Back to counter</a></p>
+{% endblock %}

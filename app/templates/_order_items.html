@@ -1,0 +1,23 @@
+<div id="order-items" data-card-url="/orders/{{ order.order_id }}/items" data-order-id="{{ order.order_id }}">
+  {% if order['items'] %}
+  <ul class="items">
+    {% for i in order['items'] %}
+    <li class="item st-{{ i.status }}">
+      <span class="iname">{{ i.qty }} × {{ i.name }}
+        {% if i.note %}<small>{{ i.note }}</small>{% endif %}
+        {% if i.cancel_reason %}<small>Cancelled: {{ i.cancel_reason }}</small>{% endif %}
+      </span>
+      <span class="badge st-{{ i.status }}">{{ i.status }}</span>
+      {% if i.status == 'ready' %}
+      <form method="post" action="/items/{{ i.item_id }}/serve" class="inline" data-once>
+        <button type="submit" class="serve-btn">Mark served</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="total">Running total: <strong>{{ order.total_paise|rupees }}</strong></p>
+  {% else %}
+  <p class="muted">Nothing ordered yet.</p>
+  {% endif %}
+</div>

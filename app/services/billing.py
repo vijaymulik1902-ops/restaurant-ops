@@ -5,8 +5,8 @@ This module must never read a cost field. It selects only the columns it needs.
 from sqlalchemy import func, select
 
 from app.config import GST_PERCENT
-from app.db import now, write_session
-from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem
+from app.db import now, read_session, write_session
+from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem, Staff
 from app.services import Event, ServiceError
 from app.services.tables import get_active_staff, table_events
 
@@ -122,3 +122,42 @@ def pay_bill(bill_id: int, payment_mode: str) -> tuple[dict, list[Event]]:
         result = _bill_result(bill, order, table)
         events = _bill_events(result, table, order)
     return result, events
+
+
+def get_bill(bill_id: int) -> dict:
+    """A bill with its billed (non-cancelled) lines, for the counter and the print view."""
+    with read_session() as s:
+        header = s.execute(
+            select(Bill, DiningTable.number.label("table_number"), Staff.name.label("waiter_name"),
+                   Order.guest_count)
+            .join(Order, Order.id == Bill.order_id)
+            .join(DiningTable, DiningTable.id == Order.table_id)
+            .join(Staff, Staff.id == Order.waiter_id)
+            .where(Bill.id == bill_id)
+        ).one_or_none()
+        if header is None:
+            raise ServiceError("Bill not found")
+        bill = header.Bill  # ORM object: read it before the session closes
+        bill_data = {
+            "bill_id": bill.id, "bill_no": bill.bill_no, "order_id": bill.order_id,
+            "subtotal_paise": bill.subtotal_paise, "discount_paise": bill.discount_paise,
+            "gst_percent": bill.gst_percent, "gst_paise": bill.gst_paise,
+            "total_paise": bill.total_paise, "payment_mode": bill.payment_mode,
+            "created_at": bill.created_at, "paid_at": bill.paid_at,
+        }
+        lines = s.execute(
+            select(OrderItem.name, OrderItem.qty, OrderItem.unit_price_paise)
+            .where(OrderItem.order_id == bill.order_id, OrderItem.status != "cancelled")
+            .order_by(OrderItem.id)
+        ).all()
+
+    return {
+        **bill_data,
+        "table_number": header.table_number, "waiter_name": header.waiter_name,
+        "guest_count": header.guest_count,
+        "lines": [
+            {"name": ln.name, "qty": ln.qty, "unit_price_paise": ln.unit_price_paise,
+             "line_total_paise": ln.qty * ln.unit_price_paise}
+            for ln in lines
+        ],
+    }

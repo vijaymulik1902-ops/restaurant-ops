@@ -1,0 +1,31 @@
+{#- One kitchen ticket line. No prices here, ever. -#}
+<div id="item-{{ i.item_id }}" class="kcard st-{{ i.status }}{% if i.status != 'ready' and i.age_seconds >= WARN_KITCHEN_SEC %} late{% endif %}"
+     data-card-url="/kitchen/items/{{ i.item_id }}/card?station={{ station }}"
+     {% if i.status != 'ready' %}data-late-in="{{ WARN_KITCHEN_SEC - i.age_seconds }}"{% endif %}>
+  {% if i.status in ('pending', 'preparing') %}
+  <form hx-post="/kitchen/items/{{ i.item_id }}/{{ 'start' if i.status == 'pending' else 'ready' }}"
+        hx-target="#item-{{ i.item_id }}" hx-swap="outerHTML" hx-disabled-elt="find button"
+        method="post" action="/kitchen/items/{{ i.item_id }}/{{ 'start' if i.status == 'pending' else 'ready' }}">
+    <input type="hidden" name="station" value="{{ station }}">
+    <button type="submit" class="kbtn">
+  {% else %}
+    <div class="kbtn">
+  {% endif %}
+      <span class="ktop">
+        <span class="ktable">T{{ i.table_number }}</span>
+        <span class="timer" data-age="{{ i.age_seconds }}">{{ i.age_minutes }}m</span>
+      </span>
+      <span class="kname"><strong>{{ i.qty }}×</strong> {{ i.name }}</span>
+      {% if i.note %}<span class="knote">{{ i.note }}</span>{% endif %}
+      <span class="kaction">
+        {%- if i.status == 'pending' %}Tap to START
+        {%- elif i.status == 'preparing' %}Cooking · tap when READY
+        {%- else %}Ready · waiting for pickup{% endif -%}
+      </span>
+  {% if i.status in ('pending', 'preparing') %}
+    </button>
+  </form>
+  {% else %}
+    </div>
+  {% endif %}
+</div>

@@ -1,10 +1,12 @@
 """Orders: sending KOTs to the kitchen and reading an order back."""
 from sqlalchemy import func, select
+from sqlalchemy.orm import defer
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db import now, read_session, write_session
-from app.models import DiningTable, Kot, MenuItem, Order, OrderItem, Staff
+from app.models import Bill, DiningTable, Kot, MenuItem, Order, OrderItem, Staff
 from app.services import Event, ServiceError, business_day_bounds, business_day_of
+from app.services.menu import list_menu
 from app.services.tables import get_active_staff, table_events
 
 MAX_NOTE_LEN = 120
@@ -146,7 +148,31 @@ def _kot_events(kot: Kot, order: Order, table: DiningTable, items: list[OrderIte
         for station, station_items in sorted(by_station.items())
     ]
     events.append(Event("counter", "order", {**base, "order_version": order.version}))
+    events.extend(table_events(table, order.id))  # floor card: first KOT clears "no order" timer
     return events
+
+
+def _check_cancel_allowed(has_kots: bool, order_waiter_id: int, staff_id: int, role: str) -> None:
+    """Who may cancel an order. Shared by cancel_order and can_cancel_order."""
+    if not has_kots:
+        if staff_id != order_waiter_id and role not in ("counter", "manager"):
+            raise ServiceError("Only the order's waiter, counter or a manager can cancel")
+    elif role != "manager":
+        raise ServiceError("Items were sent to the kitchen; ask a manager to cancel")
+
+
+def can_cancel_order(order: dict, staff_id: int, role: str) -> bool:
+    """Whether cancel_order would be allowed, for showing/hiding the button.
+
+    `order` is a get_order() result. cancel_order re-checks everything itself.
+    """
+    if order["status"] != "open" or any(i["status"] == "served" for i in order["items"]):
+        return False
+    try:
+        _check_cancel_allowed(order["has_kot"], order["waiter_id"], staff_id, role)
+    except ServiceError:
+        return False
+    return True
 
 
 def cancel_order(order_id: int, reason: str, by_staff_id: int) -> tuple[dict, list[Event]]:
@@ -168,13 +194,12 @@ def cancel_order(order_id: int, reason: str, by_staff_id: int) -> tuple[dict, li
         staff = get_active_staff(s, by_staff_id)
 
         has_kots = s.scalar(select(Kot.id).where(Kot.order_id == order.id).limit(1)) is not None
-        if not has_kots:
-            if staff.id != order.waiter_id and staff.role not in ("counter", "manager"):
-                raise ServiceError("Only the order's waiter, counter or a manager can cancel")
-        elif staff.role != "manager":
-            raise ServiceError("Items were sent to the kitchen; ask a manager to cancel")
+        _check_cancel_allowed(has_kots, order.waiter_id, staff.id, staff.role)
 
-        items = list(s.scalars(select(OrderItem).where(OrderItem.order_id == order.id)))
+        items = list(s.scalars(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+            .options(defer(OrderItem.unit_cost_paise, raiseload=True))
+        ))
         if any(it.status == "served" for it in items):
             raise ServiceError("Some items were served; bill the order instead")
 
@@ -212,9 +237,11 @@ def get_order(order_id: int) -> dict:
                 Order.id, Order.status, Order.version, Order.guest_count, Order.created_at,
                 Order.waiter_id, Staff.name.label("waiter_name"),
                 DiningTable.id.label("table_id"), DiningTable.number.label("table_number"),
+                Bill.id.label("bill_id"),
             )
             .join(DiningTable, DiningTable.id == Order.table_id)
             .join(Staff, Staff.id == Order.waiter_id)
+            .outerjoin(Bill, Bill.order_id == Order.id)
             .where(Order.id == order_id)
         ).one_or_none()
         if header is None:
@@ -247,4 +274,18 @@ def get_order(order_id: int) -> dict:
         "waiter_id": header.waiter_id, "waiter_name": header.waiter_name,
         "table_id": header.table_id, "table_number": header.table_number,
         "items": items, "total_paise": total,
+        "has_kot": bool(items),  # every KOT carries at least one item
+        "in_kitchen": sum(1 for i in items if i["status"] in ("pending", "preparing")),
+        "bill_id": header.bill_id,
+    }
+
+
+def order_screen(order_id: int, staff_id: int, role: str) -> dict:
+    """Everything the waiter's order screen needs: the order, the menu, and whether
+    the cancel button should be shown. Read-only."""
+    order = get_order(order_id)
+    return {
+        "order": order,
+        "menu": list_menu() if order["status"] == "open" else [],
+        "can_cancel": can_cancel_order(order, staff_id, role),
     }

@@ -1,11 +1,12 @@
 """Kitchen: moving items through pending -> preparing -> ready -> served, and cancellations."""
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from app.db import now, read_session, write_session
 from app.models import STATIONS, DiningTable, Kot, Order, OrderItem
 from app.services import Event, ServiceError, minutes_since
 from app.services.orders import clean_reason
-from app.services.tables import get_active_staff
+from app.services.tables import get_active_staff, table_events
 
 LIVE_ITEM_STATUSES = ("pending", "preparing", "ready")
 
@@ -23,8 +24,12 @@ def _item_data(item: OrderItem, order: Order, table: DiningTable) -> dict:
     }
 
 
+# Kitchen never SELECTs cost; touching it by mistake raises instead of silently loading it
+NO_COST = defer(OrderItem.unit_cost_paise, raiseload=True)
+
+
 def _load(s, item_id: int) -> tuple[OrderItem, Order, DiningTable]:
-    item = s.get(OrderItem, item_id)
+    item = s.get(OrderItem, item_id, options=[NO_COST])
     if item is None:
         raise ServiceError("Item not found")
     order = s.get(Order, item.order_id)
@@ -63,9 +68,11 @@ def ready_item(item_id: int, station: str) -> tuple[dict, list[Event]]:
         item.ready_at = now()
         data = _item_data(item, order, table)
         waiter_id = order.waiter_id
+        floor = table_events(table, order.id)  # floor card turns red if food waits too long
     return data, [
         Event(f"station:{data['station']}", "item", data),
         Event(f"waiter:{waiter_id}", "item_ready", data),
+        *floor,
     ]
 
 
@@ -79,9 +86,11 @@ def serve_item(item_id: int, waiter_id: int) -> tuple[dict, list[Event]]:
         item.served_at = now()
         data = _item_data(item, order, table)
         order_waiter_id = order.waiter_id
+        floor = table_events(table, order.id)
     return data, [
         Event(f"station:{data['station']}", "item", data),
         Event(f"waiter:{order_waiter_id}", "item", data),
+        *floor,
     ]
 
 
@@ -106,15 +115,19 @@ def cancel_item(item_id: int, reason: str, by_staff_id: int) -> tuple[dict, list
         item.cancel_reason = reason
         data = _item_data(item, order, table)
         waiter_id = order.waiter_id
+        floor = table_events(table, order.id)
     return data, [
         Event(f"station:{data['station']}", "item", data),
         Event(f"waiter:{waiter_id}", "item", data),
-        Event("counter", "item", data),
+        *floor,
     ]
 
 
-def live_items(station: str) -> list[dict]:
-    """Pending/preparing/ready items for one station, oldest first, with age in minutes."""
+def live_items(station: str, item_id: int | None = None) -> list[dict]:
+    """Pending/preparing/ready items for one station, oldest first, with age in minutes.
+
+    With `item_id`, returns just that item (or [] once it has left the board).
+    """
     if station not in STATIONS:
         raise ServiceError("Unknown station")
     stmt = (
@@ -129,6 +142,8 @@ def live_items(station: str) -> list[dict]:
         .where(OrderItem.station == station, OrderItem.status.in_(LIVE_ITEM_STATUSES))
         .order_by(OrderItem.created_at, OrderItem.id)
     )
+    if item_id is not None:
+        stmt = stmt.where(OrderItem.id == item_id)
     current = now()
     with read_session() as s:
         rows = s.execute(stmt).all()
@@ -138,6 +153,7 @@ def live_items(station: str) -> list[dict]:
             "note": r.note, "status": r.status, "created_at": r.created_at,
             "ready_at": r.ready_at, "table_number": r.table_number,
             "kot_number": r.kot_number, "age_minutes": minutes_since(r.created_at, current),
+            "age_seconds": max(0, int((current - r.created_at).total_seconds())),
         }
         for r in rows
     ]
