@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 # (table, column, SQL type + default) - append only, never edit a released entry
 ADDED_COLUMNS = [
     ("menu_items", "archived", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("staff", "pin_version", "INTEGER NOT NULL DEFAULT 1"),
 ]
 
 

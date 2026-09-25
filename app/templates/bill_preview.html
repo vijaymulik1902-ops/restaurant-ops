@@ -3,7 +3,7 @@
 {% block page %}bill-preview{% endblock %}
 {% block content %}
 <div class="bar">
-  <h2>Table {{ order.table_number }} <small>{{ order.guest_count }} guests · {{ order.waiter_name }}</small></h2>
+  <h2>Table {{ order.table_number }} <small>{{ order.guest_count|plural("guest") }} · {{ order.waiter_name }}</small></h2>
   <span class="badge st-{{ order.status }}">{{ order.status }}</span>
 </div>
 
@@ -13,7 +13,7 @@
 
 {% if order.status == 'open' %}
   {% if order.in_kitchen %}
-  <div class="flash flash-error">{{ order.in_kitchen }} item(s) still in the kitchen. Serve or cancel them before billing.</div>
+  <div class="flash flash-error">{{ order.in_kitchen|plural("item") }} still in the kitchen. Serve or cancel them before billing.</div>
   {% endif %}
   <form method="post" action="/counter/orders/{{ order.order_id }}/bill" class="bill-form" data-once>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

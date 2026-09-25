@@ -303,4 +303,70 @@ def test_deployment_files():
                      "mountPath: /var/data", "DB_PATH", "/var/data/restaurant.db", "COOKIE_SECURE",
                      "generateValue: true", "healthCheckPath: /health", "GST_PERCENT"):
         assert expected in render, expected
-    assert (ROOT / ".python-version").read_text().strip() == "%d.%d.%d" % sys.version_info[:3]
+    # Major.minor only, so Render picks its latest 3.14.x patch release
+    assert (ROOT / ".python-version").read_text().strip() == "%d.%d" % sys.version_info[:2]
+
+
+# ---------- final round, Part C: sessions end when a PIN changes ----------
+
+def test_pin_change_logs_out_existing_sessions(db):
+    waiter, manager = login("waiter"), login("manager")
+    assert waiter.get("/floor").status_code == 200
+    manager.post(f"/staff/{db['staff']['waiter']}/pin", data={"new_pin": "4821", "confirm_pin": "4821"})
+    resp = waiter.get("/floor")
+    assert resp.status_code == 303 and resp.headers["location"] == "/login"
+    assert waiter.get("/auth/check").status_code == 401
+    # Logging in with the new PIN works as normal
+    fresh = TestClient(app, follow_redirects=False)
+    fresh.headers["X-CSRF-Token"] = csrf_from(fresh.get("/login").text)
+    assert fresh.post("/login", data={"name": "Rahul", "pin": "4821"}).status_code == 303
+    assert fresh.get("/floor").status_code == 200
+
+
+def test_changing_your_own_pin_keeps_this_session_only(db):
+    here, elsewhere = login("manager"), login("manager")
+    here.post(f"/staff/{db['staff']['manager']}/pin", data={"new_pin": "482193", "confirm_pin": "482193"})
+    assert here.get("/staff").status_code == 200
+    assert elsewhere.get("/staff").headers["location"] == "/login"
+
+
+def test_random_pins_rotation_logs_everyone_out(db, fast_bcrypt, capsys):
+    c = login("counter")
+    assert c.get("/counter").status_code == 200
+    seed_module.seed(table_count=3, reset=False, random_pins=True)
+    capsys.readouterr()
+    assert c.get("/counter").headers["location"] == "/login"
+
+
+def test_stream_ends_after_pin_change(db, monkeypatch):
+    import threading
+
+    from app.routers import stream as stream_mod
+
+    monkeypatch.setattr(stream_mod, "RECHECK_SECONDS", 0.2)
+    c = login("waiter")
+    done = threading.Event()
+
+    def consume():
+        with c.stream("GET", "/stream") as resp:
+            for _ in resp.iter_lines():
+                pass
+        done.set()
+
+    threading.Thread(target=consume, daemon=True).start()
+    assert not done.wait(0.6)
+    staff_admin.change_pin(db["staff"]["waiter"], "4821", "4821", db["staff"]["manager"])
+    assert done.wait(3), "stream should close once the PIN changes"
+
+
+def test_migration_adds_pin_version(tmp_path):
+    from app.migrations import ensure_schema
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE staff (id INTEGER PRIMARY KEY, name VARCHAR(60))"))
+        conn.execute(text("INSERT INTO staff (name) VALUES ('Old Timer')"))
+    assert "staff.pin_version" in ensure_schema(engine)
+    assert ensure_schema(engine) == []
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT pin_version FROM staff")).scalar() == 1

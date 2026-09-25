@@ -164,7 +164,9 @@ def staff_page(request: Request, staff: CurrentStaff = Depends(manager_only)):
 def change_pin(request: Request, staff_id: Id, new_pin: str = Form(""), confirm_pin: str = Form(""),
                staff: CurrentStaff = Depends(manager_only)):
     result = staff_admin.change_pin(staff_id, new_pin, confirm_pin, staff.id)
-    flash(request, f"PIN changed for {result['name']}", kind="ok")
+    if staff_id == staff.id:  # your own PIN: keep THIS session, other devices are logged out
+        request.session["pin_version"] = result["pin_version"]
+    flash(request, f"PIN changed for {result['name']} (their other sessions are logged out)", kind="ok")
     return see_other(f"/staff#staff-{staff_id}")
 
 

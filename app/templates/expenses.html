@@ -28,10 +28,14 @@
 
 <h3>By category <small class="muted">{{ start.strftime('%d %b') }} – {{ end.strftime('%d %b %Y') }}</small></h3>
 <table>
-  {% for c, amount in by_category.items() %}
+  <tr><th colspan="2">Operating <small class="muted">(deducted from gross profit)</small></th></tr>
+  {% for c, amount in operating_by_category.items() %}
   <tr><td>{{ c|capitalize }}</td><td class="num">{{ amount|rupees }}</td></tr>
   {% endfor %}
-  <tr class="grand"><td><strong>Total</strong></td><td class="num"><strong>{{ total_paise|rupees }}</strong></td></tr>
+  <tr class="grand"><td><strong>Operating total</strong></td><td class="num"><strong>{{ operating_total_paise|rupees }}</strong></td></tr>
+  <tr><th colspan="2">Ingredient purchases <small class="muted">(not deducted: already counted via cost of goods)</small></th></tr>
+  <tr><td>Ingredients</td><td class="num">{{ ingredients_total_paise|rupees }}</td></tr>
+  <tr><td class="muted">All expenses</td><td class="num muted">{{ total_paise|rupees }}</td></tr>
 </table>
 
 <h3>Entries ({{ rows|length }})</h3>

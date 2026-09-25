@@ -56,7 +56,8 @@ def test_seven_days_of_history(seeded):
     assert t["net_sales_paise"] == subtotal - discount
     assert t["gst_paise"] == gst
     assert t["collected_paise"] == total == t["net_sales_paise"] + t["gst_paise"]
-    assert t["net_profit_paise"] == t["net_sales_paise"] - t["expenses_paise"]
+    assert t["gross_profit_paise"] == t["net_sales_paise"] - t["cost_of_goods_paise"]
+    assert t["net_profit_paise"] == t["gross_profit_paise"] - t["operating_expenses_paise"]
 
     # Realistic shape: some discounts (a few big ones), a few cancellations, audit rows written normally
     assert 0 < result["discounts"] < count * 0.3
@@ -64,7 +65,7 @@ def test_seven_days_of_history(seeded):
     assert audit_actions["bill_generated"] == count and audit_actions["bill_paid"] == count
     assert audit_actions.get("bill_discount", 0) == result["discounts"]
     assert audit_actions.get("item_cancel", 0) + audit_actions.get("order_cancel", 0) >= 1
-    assert t["expenses_by_category_paise"]["ingredients"] > 0
+    assert t["ingredient_purchases_paise"] > 0
 
 
 def test_history_is_deterministic(seeded):

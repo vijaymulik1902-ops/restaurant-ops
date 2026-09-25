@@ -4,7 +4,7 @@
 {% block content %}
 <div class="bar">
   <h2>Table {{ order.table_number }}
-    <small>{{ order.guest_count }} guests · {{ order.waiter_name }}</small></h2>
+    <small>{{ order.guest_count|plural("guest") }} · {{ order.waiter_name }}</small></h2>
   <span class="badge st-{{ order.status }}">{{ order.status }}</span>
 </div>
 

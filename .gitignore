@@ -9,3 +9,6 @@ loadtest/*.csv
 loadtest/*.html
 *.db-journal
 *.partial
+*.pdf
+loadtest.db*
+loadtest/run*.csv

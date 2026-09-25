@@ -4,9 +4,11 @@
 - Gross sales = sum of bill subtotals. Net sales = gross - discounts. GST is NOT revenue.
 - Cost of goods = sum(qty * unit_cost_paise) of non-cancelled items on those paid bills.
 - Gross profit = net sales - cost of goods (per dish: item revenue - item cost).
-- Expenses = sum of Expense.amount_paise with spent_on in the range, by category.
-- Net profit = net sales - expenses. Cost of goods is NOT subtracted as well (that double counts
-  ingredients, which are already in expenses).
+- Operating expenses = expenses (spent_on in the range) in every category except "ingredients":
+  salaries, rent, utilities, equipment, other.
+- Net profit = gross profit - operating expenses.
+- Ingredient purchases are NOT deducted (the food is already counted via cost of goods); they
+  are reported as an info line only.
 - Menu-wise revenue is at list price; bill discounts are one separate line.
 
 Every figure comes from a fixed set of GROUP BY queries, whatever the number of bills.
@@ -21,7 +23,10 @@ from app.models import EXPENSE_CATEGORIES, PAYMENT_MODES, Bill, Expense, MenuIte
 from app.services import ServiceError, business_day_bounds, business_day_of, validate_range
 
 TOP_N = 5
-PRESETS = ("today", "yesterday", "this_week", "this_month", "last_month")
+INGREDIENTS = "ingredients"
+OPERATING_CATEGORIES = tuple(c for c in EXPENSE_CATEGORIES if c != INGREDIENTS)
+PRESETS = ("today", "yesterday", "this_week", "last_30_days", "this_month", "last_month")
+DEFAULT_PRESET = "last_30_days"
 
 
 def _pct(part: int, whole: int) -> float | None:
@@ -44,12 +49,25 @@ def preset_range(name: str, today: date | None = None) -> tuple[date, date]:
         return y, y
     if name == "this_week":
         return today - timedelta(days=today.weekday()), today
+    if name == "last_30_days":  # today and the 29 days before it
+        return today - timedelta(days=29), today
     if name == "this_month":
         return today.replace(day=1), today
     if name == "last_month":
         last_day = today.replace(day=1) - timedelta(days=1)
         return last_day.replace(day=1), last_day
     raise ServiceError("Unknown period")
+
+
+PART_MONTH_MAX_DAYS = 27  # 28+ days already carries about a month of sales against the fixed costs
+
+
+def part_month_fixed_costs(start: date, end: date) -> bool:
+    """True if the range includes a month's 1st (when salaries and rent are posted) AND is
+    shorter than 28 days, e.g. "This month" early in the month: a whole month of fixed costs
+    against only a few days of sales. Last 30 days and full months don't qualify."""
+    has_first = start.day == 1 or (end.year, end.month) != (start.year, start.month)
+    return has_first and (end - start).days + 1 <= PART_MONTH_MAX_DAYS
 
 
 def sales_summary(start: date, end: date) -> dict:
@@ -107,9 +125,11 @@ def sales_summary(start: date, end: date) -> dict:
             select(Expense.category, func.sum(Expense.amount_paise))
             .where(Expense.spent_on >= start, Expense.spent_on <= end).group_by(Expense.category)
         ).all())
-        daily_exp = dict(s.execute(
+        daily_opex = dict(s.execute(
             select(Expense.spent_on, func.sum(Expense.amount_paise))
-            .where(Expense.spent_on >= start, Expense.spent_on <= end).group_by(Expense.spent_on)
+            .where(Expense.spent_on >= start, Expense.spent_on <= end,
+                   Expense.category.in_(OPERATING_CATEGORIES))
+            .group_by(Expense.spent_on)
         ).all())
         # Peak hours use the hour guests were SEATED (order created), not when they paid
         hour = cast(func.strftime("%H", Order.created_at), Integer).label("hour")
@@ -122,16 +142,19 @@ def sales_summary(start: date, end: date) -> dict:
     net = t.gross - t.discounts
     cogs = sum(d[6] for d in dishes)
     gross_profit = net - cogs
-    expenses_total = sum(expenses_by_cat.values())
+    operating = sum(expenses_by_cat.get(c, 0) for c in OPERATING_CATEGORIES)
+    net_profit = gross_profit - operating
     days = (end - start).days + 1
     totals = {
         "gross_sales_paise": t.gross, "discounts_paise": t.discounts, "net_sales_paise": net,
         "gst_paise": t.gst, "collected_paise": t.collected,
         "cost_of_goods_paise": cogs, "gross_profit_paise": gross_profit,
         "gross_margin_percent": _pct(gross_profit, net),
-        "expenses_by_category_paise": {c: expenses_by_cat.get(c, 0) for c in EXPENSE_CATEGORIES},
-        "expenses_paise": expenses_total,
-        "net_profit_paise": net - expenses_total,  # NOT minus cost of goods as well
+        "operating_expenses_by_category_paise": {c: expenses_by_cat.get(c, 0) for c in OPERATING_CATEGORIES},
+        "operating_expenses_paise": operating,
+        "ingredient_purchases_paise": expenses_by_cat.get(INGREDIENTS, 0),  # info only: already in COGS
+        "net_profit_paise": net_profit,  # gross profit - operating expenses
+        "net_margin_percent": _pct(net_profit, net),
         "bill_count": t.bills, "average_bill_paise": _div(net, t.bills),
         "days": days, "average_daily_net_sales_paise": _div(net, days),
         "guests": t.guests, "average_spend_per_guest_paise": _div(net, t.guests),
@@ -147,7 +170,7 @@ def sales_summary(start: date, end: date) -> dict:
         n, v = bills_by_day.get(key, (0, 0))
         daily.append({"day": d, "bills": n, "net_sales_paise": v,
                       "gross_profit_paise": v - (cogs_by_day.get(key) or 0),
-                      "expenses_paise": daily_exp.get(d, 0)})
+                      "operating_expenses_paise": daily_opex.get(d, 0)})
 
     # ----- menu-wise, at list price
     menu_rows = []
@@ -184,18 +207,22 @@ def sales_summary(start: date, end: date) -> dict:
         "menu": menu_rows, "categories": list(categories.values()),
         "menu_revenue_paise": sum(r["revenue_paise"] for r in menu_rows),  # == gross sales
         "payment_modes": modes, "hours": list(hours.values()),
+        "part_month_fixed_costs": part_month_fixed_costs(start, end),
     }
 
 
 def resolve_range(preset: str | None, start: date | None, end: date | None) -> tuple[date, date, str]:
     """(start, end, preset) from the page's query: explicit dates mean "custom",
-    otherwise a preset (default: today)."""
+    otherwise a preset (default: last 30 days). "custom" without dates starts from the default."""
     if start or end:
         start = start or end
         end = end or start
         validate_range(start, end)
         return start, end, "custom"
-    preset = preset or "today"
+    if preset == "custom":
+        s, e = preset_range(DEFAULT_PRESET)
+        return s, e, "custom"
+    preset = preset or DEFAULT_PRESET
     s, e = preset_range(preset)
     return s, e, preset
 
@@ -228,6 +255,9 @@ def menu_csv_rows(summary: dict) -> list[list[str]]:
         ["Net sales", "", "", _rupees(t["net_sales_paise"])],
         ["Cost of goods", "", "", _rupees(t["cost_of_goods_paise"])],
         ["Gross profit", "", "", _rupees(t["gross_profit_paise"])],
+        ["Operating expenses", "", "", _rupees(t["operating_expenses_paise"])],
+        ["Net profit", "", "", _rupees(t["net_profit_paise"])],
+        ["Ingredient purchases (already counted via cost of goods)", "", "", _rupees(t["ingredient_purchases_paise"])],
         ["GST collected (not revenue)", "", "", _rupees(t["gst_paise"])],
     ]
     return rows

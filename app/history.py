@@ -313,5 +313,6 @@ def print_summary(result: dict) -> None:
     print(f"  Discounts on {result['discounts']} bills ({result['big_discounts']} manager-approved >10%)")
     print(f"  Net sales {rupees(t['net_sales_paise'])}  |  cost of goods {rupees(t['cost_of_goods_paise'])}  |  "
           f"gross profit {rupees(t['gross_profit_paise'])} ({t['gross_margin_percent']}%)")
-    print(f"  Expenses {rupees(t['expenses_paise'])}  |  net profit {rupees(t['net_profit_paise'])}  |  "
-          f"GST collected {rupees(t['gst_paise'])}")
+    print(f"  Operating expenses {rupees(t['operating_expenses_paise'])}  |  net profit {rupees(t['net_profit_paise'])} "
+          f"({t['net_margin_percent']}%)  |  ingredient purchases {rupees(t['ingredient_purchases_paise'])} (in COGS)")
+    print(f"  GST collected {rupees(t['gst_paise'])} (not revenue)")

@@ -3,53 +3,67 @@
 {% block page %}sales{% endblock %}
 {% set t = report.totals %}
 {% set labels = {'today': 'Today', 'yesterday': 'Yesterday', 'this_week': 'This week',
-                 'this_month': 'This month', 'last_month': 'Last month'} %}
+                 'last_30_days': 'Last 30 days', 'this_month': 'This month', 'last_month': 'Last month',
+                 'custom': 'Custom range'} %}
+{% set span = "start=" ~ report.start.isoformat() ~ "&end=" ~ report.end.isoformat() %}
 {% macro pct(v) -%}{% if v is none %}—{% else %}{{ v }}%{% endif %}{%- endmacro %}
 {% from "_macros.html" import tip %}
 {% block content %}
 <div class="bar">
-  <h2>Sales report
-    <small>{{ report.start.strftime('%a %d %b %Y') }}{% if report.end != report.start %} – {{ report.end.strftime('%a %d %b %Y') }}{% endif %}</small></h2>
-  <a role="button" class="secondary" href="/reports/sales.csv?start={{ report.start.isoformat() }}&end={{ report.end.isoformat() }}">Download CSV</a>
+  <h2>Sales report</h2>
+  <a role="button" class="secondary" href="/reports/sales.csv?{{ span }}">Download CSV</a>
 </div>
+<p class="range-label"><strong>{{ labels[preset] }}</strong> · {{ report.start|date_range(report.end) }}</p>
 
-<nav class="filters" aria-label="Period">
-  {% for p in presets %}
-  <a role="button" class="{% if preset != p %}outline {% endif %}filter-link" href="/reports/sales?preset={{ p }}"
+<nav class="preset-grid" aria-label="Period">
+  {% for p in presets + ('custom',) %}
+  <a role="button" class="preset{% if preset == p %} active{% endif %}"
+     href="/reports/sales?preset={{ p }}{% if p == 'custom' %}&{{ span }}{% endif %}"
      {% if preset == p %}aria-current="page"{% endif %}>{{ labels[p] }}</a>
   {% endfor %}
 </nav>
-<form method="get" action="/reports/sales" class="audit-filters">
+{% if preset == 'custom' %}
+<form method="get" action="/reports/sales" class="audit-filters custom-range">
+  <input type="hidden" name="preset" value="custom">
   <label>From <input type="date" name="start" value="{{ report.start.isoformat() }}" max="{{ today.isoformat() }}"></label>
   <label>To <input type="date" name="end" value="{{ report.end.isoformat() }}" max="{{ today.isoformat() }}"></label>
-  <button type="submit" class="{% if preset != 'custom' %}secondary{% endif %}">Custom range</button>
+  <button type="submit">Show</button>
 </form>
+{% endif %}
 <p class="muted">Business days run {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }} to {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }}. Only paid bills count.</p>
 
 <div class="stats">
   <article><small>Net sales</small><strong>{{ t.net_sales_paise|rupees }}</strong>
-    <small class="muted">{{ t.bill_count }} bills</small></article>
+    <small class="muted">{{ t.bill_count|plural("bill") }}</small></article>
   <article><small>Gross profit</small><strong>{{ t.gross_profit_paise|rupees }}</strong>
     <small class="muted">margin {{ pct(t.gross_margin_percent) }}</small></article>
-  <article><small>Expenses</small><strong>{{ t.expenses_paise|rupees }}</strong></article>
+  <article><small>Operating expenses</small><strong>{{ t.operating_expenses_paise|rupees }}</strong>
+    {% if not t.operating_expenses_paise %}<small class="muted">No operating expenses recorded in this period</small>{% endif %}</article>
   <article class="{{ 'profit' if t.net_profit_paise >= 0 else 'loss' }}"><small>Net profit</small>
-    <strong>{{ t.net_profit_paise|rupees }}</strong></article>
+    <strong>{{ t.net_profit_paise|rupees }}</strong>
+    <small class="muted">net margin {{ pct(t.net_margin_percent) }}</small></article>
 </div>
-<p class="muted note-line">Net profit = net sales - expenses recorded in this period.</p>
+<p class="muted note-line">Net profit = gross profit - operating expenses</p>
+{% if report.part_month_fixed_costs %}
+<p class="muted note-line">Monthly fixed costs (salaries, rent) are posted on the 1st, so part-month ranges understate profit.</p>
+{% endif %}
 
 <h3>Daily net sales</h3>
-{% if CHART_JS_AVAILABLE %}
+{% if report.daily|length < 2 %}
+<p class="muted">Daily trend needs 2+ days.</p>
+{% elif CHART_JS_AVAILABLE %}
 <div class="chart-box"><canvas id="daily-chart" role="img" aria-label="Line chart of daily net sales; the same numbers are in the table below"></canvas></div>
+{% if report.end == today %}<p class="muted">Today is still in progress (dashed).</p>{% endif %}
 {% else %}
 <p class="muted">Charts need app/static/chart.umd.min.js; showing tables instead.</p>
 {% endif %}
 <details {% if not CHART_JS_AVAILABLE %}open{% endif %}>
   <summary>Daily table</summary>
   <div class="table-scroll"><table>
-    <thead><tr><th>Day</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Gross profit</th><th class="num">Expenses</th></tr></thead>
+    <thead><tr><th>Day</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Gross profit</th><th class="num">Operating exp.</th></tr></thead>
     {% for d in report.daily %}
     <tr><td>{{ d.day.strftime('%a %d %b') }}</td><td class="num">{{ d.bills }}</td><td class="num">{{ d.net_sales_paise|rupees }}</td>
-        <td class="num">{{ d.gross_profit_paise|rupees }}</td><td class="num">{{ d.expenses_paise|rupees }}</td></tr>
+        <td class="num">{{ d.gross_profit_paise|rupees }}</td><td class="num">{{ d.operating_expenses_paise|rupees }}</td></tr>
     {% endfor %}
   </table></div>
 </details>
@@ -75,16 +89,17 @@
   <tr class="grand"><td>Net sales</td><td class="num">{{ t.net_sales_paise|rupees }}</td></tr>
   <tr><td>Cost of goods</td><td class="num">−{{ t.cost_of_goods_paise|rupees }}</td></tr>
   <tr class="grand"><td>Gross profit ({{ pct(t.gross_margin_percent) }})</td><td class="num">{{ t.gross_profit_paise|rupees }}</td></tr>
-  {% for c, amount in t.expenses_by_category_paise.items() if amount %}
-  <tr><td>Expense: {{ c }}</td><td class="num">{{ amount|rupees }}</td></tr>
+  {% for c, amount in t.operating_expenses_by_category_paise.items() if amount %}
+  <tr><td>Operating expense: {{ c }}</td><td class="num">−{{ amount|rupees }}</td></tr>
   {% endfor %}
-  <tr><td>Expenses total</td><td class="num">{{ t.expenses_paise|rupees }}</td></tr>
-  <tr class="grand"><td>Net profit (net sales - expenses)</td><td class="num {{ 'ok-text' if t.net_profit_paise >= 0 else 'danger-text' }}">{{ t.net_profit_paise|rupees }}</td></tr>
+  <tr><td>Operating expenses total</td><td class="num">−{{ t.operating_expenses_paise|rupees }}</td></tr>
+  <tr class="grand"><td>Net profit ({{ pct(t.net_margin_percent) }}) = gross profit - operating expenses</td><td class="num {{ 'ok-text' if t.net_profit_paise >= 0 else 'danger-text' }}">{{ t.net_profit_paise|rupees }}</td></tr>
+  <tr><td class="muted">Ingredient purchases {{ t.ingredient_purchases_paise|rupees }} (already counted via cost of goods)</td><td class="num muted">info</td></tr>
   <tr><td>GST collected <small class="muted">(passed to government, not revenue)</small></td><td class="num">{{ t.gst_paise|rupees }}</td></tr>
-  <tr><td>Bills</td><td class="num">{{ t.bill_count }}</td></tr>
+  <tr><td>Bills</td><td class="num">{{ t.bill_count|plural("bill") }}</td></tr>
   <tr><td>Average bill (net sales, excl. GST) {{ tip("Net sales (after discounts, before GST) divided by the number of paid bills.") }}</td><td class="num">{{ t.average_bill_paise|rupees }}</td></tr>
-  <tr><td>Average net sales per calendar day ({{ t.days }} days) {{ tip("Net sales divided by every calendar day in the period, including days with no sales.") }}</td><td class="num">{{ t.average_daily_net_sales_paise|rupees }}</td></tr>
-  <tr><td>Guests · average spend per guest</td><td class="num">{{ t.guests }} · {{ t.average_spend_per_guest_paise|rupees }}</td></tr>
+  <tr><td>Average net sales per calendar day ({{ t.days|plural("day") }}) {{ tip("Net sales divided by every calendar day in the period, including days with no sales.") }}</td><td class="num">{{ t.average_daily_net_sales_paise|rupees }}</td></tr>
+  <tr><td>Guests · average spend per guest</td><td class="num">{{ t.guests|plural("guest") }} · {{ t.average_spend_per_guest_paise|rupees }}</td></tr>
 </table>
 
 <h3>Payment modes</h3>
@@ -139,7 +154,8 @@
   "daily": report.daily|map(attribute='net_sales_paise')|list,
   "days": report.daily|map(attribute='day')|map('string')|list,
   "hours": report.hours|map(attribute='net_sales_paise')|list,
-  "hourBills": report.hours|map(attribute='bills')|list
+  "hourBills": report.hours|map(attribute='bills')|list,
+  "lastDayInProgress": report.end == today
 }|tojson }}</script>
 {% if CHART_JS_AVAILABLE %}<script src="/static/chart.umd.min.js"></script>{% endif %}
 <script src="/static/sales.js"></script>

@@ -8,7 +8,7 @@
   <a role="button" class="secondary outline" href="/audit?page={{ n }}{% for k, v in filters.items() if v %}&{{ k }}={{ v|string|urlencode }}{% endfor %}">{{ label }}</a>
 {%- endmacro %}
 {% block content %}
-<div class="bar"><h2>Audit log <small>{{ total }} entries</small></h2></div>
+<div class="bar"><h2>Audit log <small>{{ total|plural("entry", "entries") }}</small></h2></div>
 <form method="get" action="/audit" class="audit-filters">
   <label>From <input type="date" name="date_from" value="{{ filters.date_from or '' }}"></label>
   <label>To <input type="date" name="date_to" value="{{ filters.date_to or '' }}"></label>

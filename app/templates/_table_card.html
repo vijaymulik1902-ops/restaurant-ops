@@ -15,7 +15,7 @@
    {% if alert_in is not none %}data-late-in="{{ alert_in }}"{% endif %}>
   <span class="tnum">{{ t.number }}</span>
   <span class="tmeta">
-    {% if t.guest_count %}{{ t.guest_count }}/{{ t.capacity }}{% else %}{{ t.capacity }} seats{% endif %}
+    {% if t.guest_count %}{{ t.guest_count }}/{{ t.capacity }}{% else %}{{ t.capacity|plural("seat") }}{% endif %}
     {% if view == 'counter' %}· {{ t.section }}{% endif %}
   </span>
   <span class="tstatus">

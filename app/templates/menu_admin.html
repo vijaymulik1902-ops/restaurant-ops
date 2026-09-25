@@ -4,7 +4,7 @@
 {% macro rupees_value(paise) -%}{{ '%d.%02d'|format(paise // 100, paise % 100) }}{%- endmacro %}
 {% block content %}
 <div class="bar">
-  <h2>Menu <small>{{ dishes|length }} dishes · manager only</small></h2>
+  <h2>Menu <small>{{ dishes|length|plural("dish", "dishes") }} · manager only</small></h2>
   <a role="button" class="secondary outline" href="/menu{% if not show_archived %}?archived=1{% endif %}">
     {% if show_archived %}Hide archived{% else %}Show archived{% endif %}</a>
 </div>

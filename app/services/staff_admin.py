@@ -50,9 +50,10 @@ def change_pin(staff_id: int, new_pin: str, confirm_pin: str, by_staff_id: int) 
         audit.record(s, by_staff_id, audit.PIN_CHANGED, "staff", target.id,
                      new={"name": target.name, "role": target.role})
         target.pin_hash = hash_pin(new_pin)
-        name = target.name
+        target.pin_version = (target.pin_version or 1) + 1  # logs out their existing sessions
+        name, version = target.name, target.pin_version
     limiter.reset(staff_id)  # a fresh PIN also clears any wrong-PIN lockout
-    return {"staff_id": staff_id, "name": name}
+    return {"staff_id": staff_id, "name": name, "pin_version": version}
 
 
 def set_active(staff_id: int, active: bool, by_staff_id: int) -> dict:

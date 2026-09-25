@@ -83,5 +83,9 @@ def list_expenses(start: date, end: date) -> dict:
         "rows": [{"expense_id": r.id, "spent_on": r.spent_on, "category": r.category,
                   "amount_paise": r.amount_paise, "note": r.note, "created_by": r.created_by} for r in rows],
         "by_category": {c: by_cat.get(c, 0) for c in EXPENSE_CATEGORIES},
+        # Split the way the profit report uses them: operating costs vs food (already in COGS)
+        "operating_by_category": {c: by_cat.get(c, 0) for c in EXPENSE_CATEGORIES if c != "ingredients"},
+        "operating_total_paise": sum(v for c, v in by_cat.items() if c != "ingredients"),
+        "ingredients_total_paise": by_cat.get("ingredients", 0),
         "total_paise": sum(by_cat.values()),
     }

@@ -53,8 +53,9 @@ async def stream(request: Request, all: bool = False):
                 try:
                     ev = await asyncio.wait_for(queue.get(), timeout=RECHECK_SECONDS)
                 except TimeoutError:
-                    if await run_in_threadpool(load_staff, staff.id) is None:
-                        return  # deactivated while connected
+                    current = await run_in_threadpool(load_staff, staff.id)
+                    if current is None or current.pin_version != staff.pin_version:
+                        return  # deactivated, or PIN changed, while connected
                     continue
                 if ev is events.CLOSE:
                     return  # dropped for falling behind; the browser reconnects and reloads

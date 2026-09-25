@@ -2,7 +2,7 @@
 {% block title %}Table {{ t.number }} · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}open-table{% endblock %}
 {% block content %}
-<h2>Table {{ t.number }} <small>({{ t.capacity }} seats)</small></h2>
+<h2>Table {{ t.number }} <small>({{ t.capacity|plural("seat") }})</small></h2>
 <p>How many guests?</p>
 <form method="post" action="/floor/tables/{{ t.table_id }}/open" class="guest-grid" data-once>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

@@ -75,12 +75,16 @@ Rules that keep cost data private and separate from prices:
   (who, when, old value, new value) — ask before adding the table.
 
 ## Sales report definitions (never mix these up)
-- Only PAID bills count, filtered by Bill.paid_at within the selected range (inclusive dates).
+- Only PAID bills count, filtered by Bill.paid_at within the selected range (inclusive business days).
 - Gross sales = sum of bill subtotals. Net sales = gross sales - discounts. GST is NOT revenue.
-- Cost of goods = sum(qty * unit_cost_paise) of non-cancelled items on paid bills.
-- Gross profit = net sales - cost of goods (per dish: item revenue - item cost).
-- Expenses = sum of Expense.amount_paise with spent_on in range, by category.
-- Net profit = net sales - expenses. NEVER subtract cost of goods AND expenses together (double count).
+- Cost of goods sold = sum(qty * unit_cost_paise) of non-cancelled items on paid bills.
+- Gross profit = net sales - cost of goods sold (per dish: item revenue - item cost).
+- Operating expenses = sum of Expense.amount_paise with spent_on in range, in categories
+  salaries, rent, utilities, equipment, other (every category except "ingredients").
+- Net profit = gross profit - operating expenses.
+- Ingredient purchases (category "ingredients") are NOT deducted in profit: the food is already
+  counted via cost of goods. Show them only as an info line
+  ("Ingredient purchases ₹X (already counted via cost of goods)").
 - Menu-wise revenue is at list price; bill discounts are shown as one separate line.
 
 ## Event channels

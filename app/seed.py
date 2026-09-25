@@ -76,6 +76,7 @@ def rotate_all_pins() -> None:
         for staff in s.scalars(select(Staff).where(Staff.active.is_(True)).order_by(Staff.role, Staff.name)):
             pin = _random_pin(staff.role)
             staff.pin_hash = _hash(pin)
+            staff.pin_version = (staff.pin_version or 1) + 1  # old sessions are logged out
             rows.append((staff.name, staff.role, pin))
     _print_pins("New random PINs for all active staff", rows)
 

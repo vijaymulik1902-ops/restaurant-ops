@@ -46,6 +46,7 @@ class CurrentStaff:
     role: str
     section: str | None
     station: str | None
+    pin_version: int = 1
 
 
 class AuthError(Exception):
@@ -202,7 +203,7 @@ def client_ip(request: Request) -> str:
 
 
 def _to_current(staff: Staff) -> CurrentStaff:
-    return CurrentStaff(staff.id, staff.name, staff.role, staff.section, staff.station)
+    return CurrentStaff(staff.id, staff.name, staff.role, staff.section, staff.station, staff.pin_version or 1)
 
 
 def active_staff_names() -> list[dict]:
@@ -239,6 +240,7 @@ def start_session(request: Request, staff: CurrentStaff) -> None:
     token = request.session.get(CSRF_SESSION_KEY)
     request.session.clear()
     request.session["staff_id"] = staff.id
+    request.session["pin_version"] = staff.pin_version
     if token:
         request.session[CSRF_SESSION_KEY] = token  # keeps other open tabs' forms valid
 
@@ -262,8 +264,11 @@ def optional_staff(request: Request) -> CurrentStaff | None:
     if not isinstance(staff_id, int):
         return None
     staff = load_staff(staff_id)
-    if staff is None:
+    # A PIN change bumps pin_version: sessions from before it (or from before this check
+    # existed) no longer match and are logged out
+    if staff is None or request.session.get("pin_version") != staff.pin_version:
         request.session.clear()
+        return None
     return staff
 
 

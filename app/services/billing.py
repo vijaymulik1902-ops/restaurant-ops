@@ -9,6 +9,7 @@ from app.db import now, read_session, write_session
 from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem, Staff
 from app.services import Event, ServiceError, audit
 from app.services.orders import check_version
+from app.text import plural
 from app.services.tables import get_active_staff, table_events
 
 MANAGER_FREE_DISCOUNT_PERCENT = 10
@@ -68,7 +69,7 @@ def generate_bill(order_id: int, discount_paise: int, by_staff_id: int,
         ).all()
         in_kitchen = sum(1 for ln in lines if ln.status in ("pending", "preparing"))
         if in_kitchen:
-            raise ServiceError(f"{in_kitchen} item(s) still in the kitchen; serve or cancel them first")
+            raise ServiceError(f"{plural(in_kitchen, 'item')} still in the kitchen; serve or cancel them first")
         billable = [ln for ln in lines if ln.status != "cancelled"]
         if not billable:
             # Never spend a bill number on a zero-value bill

@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app import config, events
 from app.auth import CurrentStaff, csrf_token
 from app.services import Event, ServiceError
+from app.text import date_range, plural
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
@@ -55,6 +56,8 @@ def table_alert_in(t: dict) -> int | None:
 
 
 templates.env.filters["rupees"] = rupees
+templates.env.filters["plural"] = plural
+templates.env.filters["date_range"] = date_range
 templates.env.globals.update(
     RESTAURANT_NAME=config.RESTAURANT_NAME,
     BUSINESS_DAY_START_HOUR=config.BUSINESS_DAY_START_HOUR,

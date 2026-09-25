@@ -48,6 +48,9 @@ class Staff(Base):
     section: Mapped[str | None] = mapped_column(String(10))  # waiters: which tables they cover
     station: Mapped[str | None] = mapped_column(String(10))  # chefs: which station they cook at
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Bumped on every PIN change; sessions remember it, so a new PIN logs out old sessions.
+    # Existing databases get this column from app.migrations.ensure_schema() at startup.
+    pin_version: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
 
 
 class DiningTable(Base):

@@ -23,6 +23,7 @@
       maintainAspectRatio: false,  // the .chart-box sets the height; width follows the phone
       resizeDelay: 100,            // rotate/resize on mobile without thrashing
       animation: false,
+      layout: { padding: { top: 12, right: 12, left: 4 } },  // room so edge points aren't clipped
       interaction: { mode: 'index', intersect: false },   // crosshair-style hover
       plugins: {
         legend: { display: false },
@@ -30,7 +31,8 @@
       },
       scales: {
         x: { ticks: { color: INK, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { color: INK, callback: function (v) { return rupees(v); } },
+        y: { beginAtZero: true, grace: '20%',  // ~20% headroom above the tallest point/bar
+             ticks: { color: INK, callback: function (v) { return rupees(v); } },
              grid: { color: GRID }, border: { display: false } }
       }
     };
@@ -52,17 +54,32 @@
         type: 'line',
         data: {
           labels: data.days.map(function (d) { return d.slice(5); }),  // MM-DD
-          datasets: [{ data: data.daily, borderColor: SERIES, backgroundColor: SERIES,
+          datasets: [{ data: data.daily, borderColor: SERIES, backgroundColor: SERIES, clip: false,
+                       // Today isn't over: dash the segment into it so a low value doesn't read as a crash
+                       segment: { borderDash: function (ctx) {
+                         return data.lastDayInProgress && ctx.p1DataIndex === data.daily.length - 1 ? [4, 4] : undefined;
+                       } },
                        borderWidth: 2, pointRadius: data.daily.length > 40 ? 0 : 4, pointHoverRadius: 6,
                        tension: 0 }]
         },
-        options: baseOptions()
+        options: (function () {
+          var o = baseOptions();
+          o.scales.x.offset = data.daily.length < 4;  // few points: keep them off the chart edges
+          o.plugins.tooltip.callbacks.label = function (ctx) {
+            var today = data.lastDayInProgress && ctx.dataIndex === data.daily.length - 1;
+            return rupees(ctx.parsed.y) + (today ? ' (today, so far)' : '');
+          };
+          return o;
+        })()
       });
     }
     var hours = document.getElementById('hours-chart');
     if (hours) {
       var opts = baseOptions();
-      opts.plugins.tooltip.callbacks.afterLabel = function (ctx) { return data.hourBills[ctx.dataIndex] + ' bills'; };
+      opts.plugins.tooltip.callbacks.afterLabel = function (ctx) {
+        var n = data.hourBills[ctx.dataIndex];
+        return n + (n === 1 ? ' bill' : ' bills');
+      };
       draw(hours, {
         type: 'bar',
         data: {

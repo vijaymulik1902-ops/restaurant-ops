@@ -68,6 +68,23 @@ can never leave a stale screen.
 
 Event channels: `station:{tandoor|kitchen|bar}`, `section:{A..G}`, `waiter:{id}`, `counter`.
 
+## Profit definitions
+
+The sales report follows standard accounting (also written into `CLAUDE.md`, and pinned by tests):
+
+| Line | Definition |
+|---|---|
+| Gross sales | Sum of bill subtotals, **paid bills only**, by payment time, business days 04:00-04:00 |
+| Net sales | Gross sales - discounts. **GST is not revenue** (reported separately) |
+| Cost of goods sold | Sum of qty x unit cost of every non-cancelled item on those bills (cost snapshotted when the KOT was sent) |
+| Gross profit | Net sales - cost of goods sold |
+| Operating expenses | Expenses dated in the period: salaries, rent, utilities, equipment, other |
+| **Net profit** | **Gross profit - operating expenses** |
+| Ingredient purchases | Info line only, **not deducted**: the food is already counted via cost of goods |
+
+So a period with no expenses shows net profit = gross profit, never net sales (unless every dish
+cost nothing). Menu-wise revenue is at list price; bill discounts appear as one separate line.
+
 ## Access control
 
 Enforced on the server for every route (role dependency) and again inside the services, never
@@ -124,7 +141,7 @@ contains a cost or margin.
 - **Business day, 04:00 to 04:00.** A table that orders at 23:30 and pays at 00:15 belongs to
   that evening. KOT numbers, day close, the sales report and expenses all use the same boundary.
 - **Tested rules, thin routers.** Every rule lives in `app/services` and is unit tested; routers
-  only parse, call one service and render. 335 tests run in about 8 seconds.
+  only parse, call one service and render. 348 tests run in about 9 seconds.
 
 ## Run it locally
 
@@ -140,6 +157,42 @@ pytest -q
 Open http://localhost:8000. The default seed uses simple demo PINs for local use: waiter
 Rahul 1111, chef Suresh 8181, counter 9090, manager 9191. For anything public, use
 `--random-pins` (see Deploy).
+
+## Demo walkthrough (3 minutes)
+
+Setup: `python -m app.seed --reset --history 30`, then `uvicorn app.main:app --host 0.0.0.0`.
+Open it on a phone as **Rahul / 1111** (waiter), on a tablet or second browser as
+**Suresh / 8181** (tandoor chef), and on the laptop as **Counter / 9090**. Keep a manager tab
+(**Manager / 9191**) for the last three steps.
+
+1. **Wi-Fi drop mid-order (30 s).** On the phone, seat table 1 and pick two naans and a dal.
+   Turn Wi-Fi off: an orange "Reconnecting…" bar appears. Turn it back on: the bar goes, the
+   screen reloads its state from the server, and your picks are still there.
+2. **Double-tap "Send to kitchen" (20 s).** Tap it twice quickly. The kitchen tablet gets each
+   item **once**, and the phone's list shows each item once. The page ignores the second tap, and
+   a resent form (flaky Wi-Fi, back button) carries the same `kot_id`, which the server turns
+   into a no-op. The load test double-taps 534 times and verifies zero duplicates.
+3. **Kitchen to floor (20 s).** On the tablet, tap the naan to start it, then again when ready.
+   The phone buzzes and beeps with "Table 1: Butter Naan READY"; tap "Mark served".
+4. **Counter can't over-discount (20 s).** When everything is served, open table 1 on the counter
+   and type a discount above 10% of the subtotal: it's refused ("needs a manager"). Exactly 10%
+   works. Take payment by UPI; table 1 turns green on the phone at once.
+5. **Waiter can't see cost (15 s).** On the phone, open `/menu` or `/reports/sales`: "Not
+   allowed". The order screen shows prices only, never cost or margin.
+6. **Day close (20 s).** On the counter, open Day close for yesterday: **Mismatches (0)**, cash /
+   UPI / card totals, cancelled items with reasons.
+7. **Audit log (20 s).** On the phone, seat table 2, send a lassi, and cancel it with the ✕ and
+   "Customer changed mind". In the manager tab, **Audit** shows the `item cancel` row with who,
+   when, and the reason. A cancel after food was ready would be highlighted in red.
+8. **Sales report (30 s).** Manager, **Sales report** (opens on Last 30 days; tap This month to
+   compare). It shows:
+   - net sales, gross profit (margin), operating expenses, net profit (net margin)
+   - the daily trend and peak-hours charts
+   - the menu table: sort by profit, top 5 starred
+
+   Net profit = gross profit - operating expenses; ingredient purchases are shown for info only.
+   Short ranges that include a 1st (e.g. This month early in the month) carry a note: salaries and
+   rent post on the 1st, so they understate profit.
 
 ## Load test
 
@@ -211,9 +264,10 @@ download a fresh copy any time from `/admin/backup`; downloads are audited.
 - PINs are bcrypt-hashed and never stored or logged in plain text.
 - Wrong PINs: 5 per staff member per 5 minutes, and at most 20 login attempts per IP per
   10 minutes (`LOGIN_IP_LIMIT` / `LOGIN_IP_WINDOW_SEC`).
-- Signed session cookie holding only the staff id: 14-hour shift, `SameSite=Lax`, `Secure` in
-  production. Staff are reloaded on every request, so deactivating someone logs them out on
-  their next tap, and their open live stream closes within 30 seconds.
+- Signed session cookie holding the staff id and a PIN version: 14-hour shift, `SameSite=Lax`,
+  `Secure` in production. Staff are reloaded on every request, so deactivating someone or
+  changing their PIN logs out their existing sessions on the next tap, and closes their open
+  live stream within 30 seconds.
 - CSRF token on every POST (form field or `X-CSRF-Token` header from HTMX).
 - Friendly pages for bad input, a busy database or unexpected errors; never a stack trace.
 
@@ -222,8 +276,8 @@ download a fresh copy any time from `/admin/backup`; downloads are audited.
 - **One process.** Live updates are broadcast from memory, so the app can't run more than one
   Uvicorn worker or instance. That's comfortable for one restaurant; a chain would need Redis
   pub/sub and Postgres.
-- **Sessions can't be revoked on the server.** A copied cookie stays valid until it expires
-  (14 h), and changing a PIN doesn't end existing sessions. Deactivating the person does.
+- **No per-device logout.** Sessions live in the signed cookie. To end one person's sessions,
+  change their PIN or deactivate them; there's no "log out that one phone".
 - **Rate limits and lockouts are in memory** and reset on restart or deploy.
 - **Shared Wi-Fi counts as one IP.** Staff behind the restaurant's network share the per-IP
   login limit. 20 per 10 minutes covers a shift change; raise `LOGIN_IP_LIMIT` for a larger
