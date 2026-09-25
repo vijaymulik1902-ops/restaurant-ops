@@ -19,8 +19,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import auth
 from app.db import init_db
+from app.migrations import ensure_schema
 from app.routers import auth as auth_routes
-from app.routers import counter, floor, kitchen, orders, stream
+from app.routers import counter, floor, kitchen, manager, orders, stream
 from app.services import ServiceError
 from app.web import ROLE_HOME, back_url, flash, is_htmx, see_other
 
@@ -35,6 +36,7 @@ BAD_INPUT_MESSAGE = "Something in that form wasn't valid, please check and try a
 async def lifespan(_app: FastAPI):
     auth.check_production_settings()
     init_db()
+    ensure_schema()
     yield
 
 
@@ -42,7 +44,7 @@ app = FastAPI(title="Restaurant Ops", lifespan=lifespan, docs_url=None, redoc_ur
               dependencies=[Depends(auth.csrf_protect)])
 auth.install(app)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
-for module in (auth_routes, floor, orders, kitchen, counter, stream):
+for module in (auth_routes, floor, orders, kitchen, counter, manager, stream):
     app.include_router(module.router)
 
 

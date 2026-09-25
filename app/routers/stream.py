@@ -1,18 +1,21 @@
 """GET /stream: Server-Sent Events, channels chosen by role."""
+import asyncio
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Request
+from fastapi.responses import Response
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
 from app import events
-from app.auth import CurrentStaff, current_staff
+from app.auth import CurrentStaff, load_staff, optional_staff
 from app.models import STATIONS
 from app.services.tables import list_sections
 
 router = APIRouter()
 
 PING_SECONDS = 15
+RECHECK_SECONDS = 30  # a deactivated staff member's open stream ends within this time
 
 
 def channels_for(staff: CurrentStaff, sections: list[str], all_sections: bool = False) -> list[str]:
@@ -35,14 +38,24 @@ def channels_for(staff: CurrentStaff, sections: list[str], all_sections: bool = 
 
 
 @router.get("/stream")
-async def stream(all: bool = False, staff: CurrentStaff = Depends(current_staff)):
+async def stream(request: Request, all: bool = False):
+    # 401, not a redirect: EventSource can't follow a login page, and app.js uses this
+    # (via /auth/check) to stop reconnecting and send the user to /login
+    staff = await run_in_threadpool(optional_staff, request)
+    if staff is None:
+        return Response(status_code=401)
     channels = channels_for(staff, await run_in_threadpool(list_sections), all_sections=all)
 
     async def gen():
         queue = events.subscribe(channels)
         try:
             while True:
-                ev = await queue.get()
+                try:
+                    ev = await asyncio.wait_for(queue.get(), timeout=RECHECK_SECONDS)
+                except TimeoutError:
+                    if await run_in_threadpool(load_staff, staff.id) is None:
+                        return  # deactivated while connected
+                    continue
                 if ev is events.CLOSE:
                     return  # dropped for falling behind; the browser reconnects and reloads
                 yield {"event": ev.type,

@@ -1,5 +1,6 @@
 """Login and logout."""
 from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import JSONResponse
 
 from app import auth
 from app.web import render, see_other
@@ -27,5 +28,14 @@ def login_submit(request: Request, name: str = Form(""), pin: str = Form("")):
 
 @router.post("/logout")
 def logout(request: Request):
-    auth.end_session(request)
+    auth.end_session(request)  # clears everything, including the CSRF token
     return see_other("/login")
+
+
+@router.get("/auth/check")
+def auth_check(staff: auth.CurrentStaff | None = Depends(auth.optional_staff)):
+    """Tiny probe for app.js: 200 while logged in, 401 once the session is gone."""
+    headers = {"Cache-Control": "no-store"}
+    if staff is None:
+        return JSONResponse({"ok": False}, status_code=401, headers=headers)
+    return JSONResponse({"ok": True, "role": staff.role}, headers=headers)

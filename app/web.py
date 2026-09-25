@@ -1,4 +1,5 @@
 """Shared helpers for routers: templates, flash messages, redirects, event publishing."""
+from decimal import Decimal, DecimalException
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -10,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from app import config, events
 from app.auth import CurrentStaff, csrf_token
-from app.services import Event
+from app.services import Event, ServiceError
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
@@ -60,6 +61,8 @@ templates.env.globals.update(
     WARN_KITCHEN_SEC=config.WARN_KITCHEN_MIN * 60,
     table_alert_in=table_alert_in,
     CANCEL_REASONS=CANCEL_REASONS,
+    # Chart.js is vendored at app/static/chart.umd.min.js (no CDN); pages fall back to tables without it
+    CHART_JS_AVAILABLE=(Path(__file__).resolve().parent / "static" / "chart.umd.min.js").is_file(),
 )
 
 
@@ -105,3 +108,24 @@ def back_url(request: Request, fallback: str = "/") -> str:
 def publish(events_to_send: list[Event]) -> None:
     """Send events to live screens. Call only after the service call has returned (committed)."""
     events.publish(events_to_send)
+
+
+MAX_RUPEES = Decimal(10**8)  # parsing sanity bound; services apply the real limits
+
+
+def parse_rupees(text: str | None, label: str) -> int:
+    """'50' / '49.5' / '₹1,250' / '' -> paise. Parsing only; services validate the amount."""
+    text = (text or "").strip().replace(",", "").lstrip("₹").strip()
+    if not text:
+        return 0
+    bad = ServiceError(f"Enter the {label.lower()} in rupees, e.g. 50 or 49.50")
+    try:
+        value = Decimal(text)
+        # adjusted() reads the exponent without arithmetic, so '1e1000000' can't overflow here
+        if not value.is_finite() or value.adjusted() > MAX_RUPEES.adjusted():
+            raise bad
+        if value != value.quantize(Decimal("0.01")):
+            raise ServiceError(f"{label} can have at most 2 decimal places")
+        return int(value * 100)
+    except DecimalException:
+        raise bad

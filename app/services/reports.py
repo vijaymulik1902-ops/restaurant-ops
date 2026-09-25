@@ -103,3 +103,8 @@ def day_close(day: date | None = None) -> dict:
             for r in mismatch_rows
         ],
     }
+
+
+# The sales summary reads cost of goods, so it lives in the manager-only app.services.sales
+# (this module stays cost-free for the counter). Re-exported so reports.sales_summary works.
+from app.services.sales import sales_summary  # noqa: E402,F401

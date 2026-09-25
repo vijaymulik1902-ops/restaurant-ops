@@ -8,7 +8,7 @@ DAY = date(2026, 9, 25)
 
 def _pay(db, order_id, mode, discount=0):
     bill, _ = billing.generate_bill(order_id, discount, db["staff"]["manager"])
-    billing.pay_bill(bill["bill_id"], mode)
+    billing.pay_bill(bill["bill_id"], mode, db["staff"]["counter"])
     return bill
 
 

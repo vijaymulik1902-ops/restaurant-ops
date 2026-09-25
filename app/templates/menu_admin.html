@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Menu · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}menu-admin{% endblock %}
+{% macro rupees_value(paise) -%}{{ '%d.%02d'|format(paise // 100, paise % 100) }}{%- endmacro %}
+{% block content %}
+<div class="bar">
+  <h2>Menu <small>{{ dishes|length }} dishes · manager only</small></h2>
+  <a role="button" class="secondary outline" href="/menu{% if not show_archived %}?archived=1{% endif %}">
+    {% if show_archived %}Hide archived{% else %}Show archived{% endif %}</a>
+</div>
+<p class="muted">Price changes apply to new orders only; lines already sent keep their price. Cost never affects a bill.</p>
+
+<details class="add-dish" {% if not dishes %}open{% endif %}>
+  <summary>Add a dish</summary>
+  <form method="post" action="/menu" data-once class="add-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Name <input type="text" name="name" required maxlength="80"></label>
+    <label>Category <input type="text" name="category" required maxlength="30" list="categories"></label>
+    <datalist id="categories">{% for c in dishes|map(attribute='category')|unique %}<option value="{{ c }}">{% endfor %}</datalist>
+    <label>Station
+      <select name="station" required>{% for st in stations %}<option value="{{ st }}">{{ st|capitalize }}</option>{% endfor %}</select>
+    </label>
+    <label>Price (₹) <input type="text" name="price" inputmode="decimal" required></label>
+    <label>Cost (₹) <input type="text" name="cost" inputmode="decimal" placeholder="0"></label>
+    <button type="submit" class="big">Add dish</button>
+  </form>
+</details>
+
+{% for category, group in dishes|groupby('category') %}
+<h3>{{ category }}</h3>
+<div class="dish-admin-list">
+  {% for d in group %}
+  <article id="dish-{{ d.menu_item_id }}" class="dish-admin{% if d.warning %} warn{% endif %}{% if not d.available %} off{% endif %}{% if d.archived %} archived{% endif %}">
+    <header>
+      <strong>{{ d.name }}</strong> <small class="muted">{{ d.station }}</small>
+      {% if d.archived %}<span class="badge">archived</span>{% endif %}
+      <span class="margin">Margin {% if d.margin_percent is none %}—{% else %}{{ d.margin_percent }}%{% endif %}</span>
+    </header>
+    {% if d.warning %}<p class="warn-text">{{ d.warning }}</p>{% endif %}
+    {% if d.archived %}
+    <form method="post" action="/menu/{{ d.menu_item_id }}/archive" data-once>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="archived" value="0">
+      <button type="submit">Restore to menu</button>
+    </form>
+    {% else %}
+    <div class="edit-row">
+      <form method="post" action="/menu/{{ d.menu_item_id }}/price" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Price (₹) <input type="text" name="price" inputmode="decimal" value="{{ rupees_value(d.price_paise) }}" required></label>
+        <button type="submit">Save price</button>
+      </form>
+      <form method="post" action="/menu/{{ d.menu_item_id }}/cost" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Cost (₹) <input type="text" name="cost" inputmode="decimal" value="{{ rupees_value(d.cost_paise) }}" required></label>
+        <button type="submit" class="secondary">Save cost</button>
+      </form>
+      <form method="post" action="/menu/{{ d.menu_item_id }}/availability" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="available" value="{{ '0' if d.available else '1' }}">
+        <button type="submit" class="{{ 'toggle-on' if d.available else 'toggle-off' }}">{{ 'Available' if d.available else 'OFF' }}</button>
+      </form>
+    </div>
+    <details class="more-actions">
+      <summary>Rename or archive</summary>
+      <div class="edit-row">
+        <form method="post" action="/menu/{{ d.menu_item_id }}/rename" data-once>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>New name <input type="text" name="name" value="{{ d.name }}" maxlength="80" required></label>
+          <button type="submit" class="secondary">Rename</button>
+        </form>
+        <form method="post" action="/menu/{{ d.menu_item_id }}/archive" data-once>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="archived" value="1">
+          <p class="muted">Removes it from ordering. Past bills are not affected; you can restore it later.</p>
+          <button type="submit" class="danger">Archive dish</button>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -2,6 +2,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    DDL,
     Boolean,
     CheckConstraint,
     Date,
@@ -10,6 +11,8 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
+    event,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,6 +26,7 @@ ITEM_STATUSES = ("pending", "preparing", "ready", "served", "cancelled")
 STATIONS = ("tandoor", "kitchen", "bar")
 PAYMENT_MODES = ("cash", "upi", "card")
 EXPENSE_CATEGORIES = ("ingredients", "salaries", "rent", "utilities", "equipment", "other")
+AUDIT_ENTITIES = ("order", "order_item", "bill", "menu_item", "expense")
 
 
 def _in(col: str, values: tuple) -> str:
@@ -75,6 +79,9 @@ class MenuItem(Base):
     price_paise: Mapped[int] = mapped_column(Integer)
     cost_paise: Mapped[int] = mapped_column(Integer, default=0)  # approx ingredient cost per plate
     available: Mapped[bool] = mapped_column(Boolean, default=True)  # false = "86'd", can't be ordered
+    # Archived = retired from the menu (instead of deleting, so history stays intact).
+    # Existing databases get this column from app.migrations.ensure_schema() at startup.
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
 
 
 class Order(Base):
@@ -206,3 +213,40 @@ class Expense(Base):
     note: Mapped[str | None] = mapped_column(String(160))
     created_by: Mapped[int] = mapped_column(ForeignKey("staff.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class AuditLog(Base):
+    """Append-only record of sensitive changes (who, when, old -> new, why).
+
+    Written by app.services.audit.record() inside the same transaction as the change,
+    so a rolled-back change never leaves an audit row. Nothing in the app updates or
+    deletes rows, and the database refuses to (triggers below).
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        CheckConstraint(_in("entity", AUDIT_ENTITIES), name="ck_audit_entity"),
+        Index("ix_audit_at", "at"),
+        Index("ix_audit_staff_at", "staff_id", "at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime)
+    staff_id: Mapped[int] = mapped_column(ForeignKey("staff.id"))
+    action: Mapped[str] = mapped_column(String(30))
+    entity: Mapped[str] = mapped_column(String(12))
+    entity_id: Mapped[int] = mapped_column(Integer)
+    old_value: Mapped[str | None] = mapped_column(Text)  # JSON
+    new_value: Mapped[str | None] = mapped_column(Text)  # JSON
+    reason: Mapped[str | None] = mapped_column(String(120))
+
+
+for _op in ("UPDATE", "DELETE"):
+    event.listen(
+        AuditLog.__table__,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER IF NOT EXISTS audit_log_no_{_op.lower()} BEFORE {_op} ON audit_log "
+            f"BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END"
+        ),
+    )

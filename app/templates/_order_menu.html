@@ -1,0 +1,30 @@
+{#- The menu block of the order screen. Reloaded alone on a live "menu_changed" event;
+    app.js then refills the waiter's picks from the tab draft. -#}
+<div id="menu-block" data-card-url="/orders/{{ order.order_id }}/menu">
+{% for category, dishes in menu|groupby('category') %}
+<details class="menu-cat" open>
+  <summary>{{ category }}</summary>
+  {% for m in dishes %}
+  {%- set sel = selection.get(m.menu_item_id) if selection else none -%}
+  <div class="menu-row{% if not m.available %} unavailable{% endif %}{% if sel and sel.qty not in ('', '0') %} picked{% endif %}"
+       data-name="{{ m.name|lower }}" data-menu-id="{{ m.menu_item_id }}">
+    <div class="menu-name">{{ m.name }}<small>{{ m.price_paise|rupees }}</small>
+      <span class="na-label muted" {% if m.available %}hidden{% endif %}>Not available</span></div>
+    <div class="stepper">
+      <button type="button" class="secondary" data-step="-1" aria-label="Less {{ m.name }}"
+              {% if not m.available %}disabled{% endif %}>−</button>
+      <input type="number" name="qty_{{ m.menu_item_id }}" value="{{ sel.qty if sel and sel.qty else 0 }}"
+             min="0" max="99" inputmode="numeric" aria-label="{{ m.name }} quantity"
+             {% if not m.available %}disabled{% endif %}>
+      <button type="button" data-step="1" aria-label="More {{ m.name }}"
+              {% if not m.available %}disabled{% endif %}>+</button>
+    </div>
+    <input type="text" name="note_{{ m.menu_item_id }}" class="note" maxlength="120"
+           value="{{ sel.note if sel else '' }}" placeholder="Note (less spicy, no onion…)"
+           {% if not (sel and (sel.note or sel.qty not in ('', '0'))) %}hidden{% endif %}
+           {% if not m.available %}disabled{% endif %}>
+  </div>
+  {% endfor %}
+</details>
+{% endfor %}
+</div>

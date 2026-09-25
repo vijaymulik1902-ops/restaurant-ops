@@ -1,19 +1,32 @@
 """Menu as seen by floor and kitchen: prices for the order screen, never cost."""
 from sqlalchemy import select
-from sqlalchemy.orm import defer
+from sqlalchemy.orm import Session, defer
 
 from app.db import read_session, write_session
 from app.models import DiningTable, MenuItem
-from app.services import Event, ServiceError
+from app.services import Event, ServiceError, audit
 from app.services.tables import get_active_staff
 
 
+def section_events(s: Session, event_type: str, data: dict) -> list[Event]:
+    """One small event per floor section (every order screen listens to its section)."""
+    sections = s.scalars(select(DiningTable.section).distinct()).all()
+    return [Event(f"section:{sec}", event_type, data) for sec in sorted(sections)]
+
+
+def menu_changed_events(s: Session, menu_item_id: int, change: str) -> list[Event]:
+    """Tell order screens to reload their menu block. Ids only: never price or cost."""
+    return section_events(s, "menu_changed", {"menu_item_id": menu_item_id, "change": change})
+
+
 def list_menu() -> list[dict]:
-    """All dishes sorted by category and name, including unavailable ones (shown greyed)."""
+    """Dishes on the menu (not archived), sorted by category and name, including
+    unavailable ones (shown greyed)."""
     with read_session() as s:
         rows = s.execute(
             select(MenuItem.id, MenuItem.name, MenuItem.category, MenuItem.station,
                    MenuItem.price_paise, MenuItem.available)
+            .where(MenuItem.archived.is_(False))
             .order_by(MenuItem.category, MenuItem.name)
         ).all()
     return [
@@ -28,7 +41,8 @@ def list_availability(station: str | None = None) -> list[dict]:
 
     `station` limits to one station (a chef's own); None lists every station (manager).
     """
-    stmt = select(MenuItem.id, MenuItem.name, MenuItem.category, MenuItem.station, MenuItem.available)
+    stmt = (select(MenuItem.id, MenuItem.name, MenuItem.category, MenuItem.station, MenuItem.available)
+            .where(MenuItem.archived.is_(False)))
     if station is not None:
         stmt = stmt.where(MenuItem.station == station)
     with read_session() as s:
@@ -50,7 +64,7 @@ def set_available(menu_item_id: int, available: bool, by_staff_id: int) -> tuple
         item = s.get(MenuItem, menu_item_id, options=[
             defer(MenuItem.cost_paise, raiseload=True), defer(MenuItem.price_paise, raiseload=True),
         ])
-        if item is None:
+        if item is None or item.archived:
             raise ServiceError("Menu item not found")
         if staff.role == "chef":
             if staff.station != item.station:
@@ -58,9 +72,15 @@ def set_available(menu_item_id: int, available: bool, by_staff_id: int) -> tuple
         elif staff.role != "manager":
             raise ServiceError("Only chefs and managers can change availability")
 
-        item.available = bool(available)
-        sections = s.scalars(select(DiningTable.section).distinct()).all()
+        available = bool(available)
+        if item.available == available:
+            return {"menu_item_id": item.id, "name": item.name, "station": item.station,
+                    "available": available}, []  # already so: nothing to change, audit or announce
+        audit.record(s, staff.id, audit.AVAILABILITY, "menu_item", item.id,
+                     old={"available": item.available, "name": item.name},
+                     new={"available": available})
+        item.available = available
         data = {"menu_item_id": item.id, "name": item.name, "station": item.station,
                 "available": item.available}
-    events = [Event(f"section:{sec}", "menu", data) for sec in sorted(sections)]
+        events = section_events(s, "menu", data)
     return data, events

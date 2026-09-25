@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Sales report · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}sales{% endblock %}
+{% set t = report.totals %}
+{% set labels = {'today': 'Today', 'yesterday': 'Yesterday', 'this_week': 'This week',
+                 'this_month': 'This month', 'last_month': 'Last month'} %}
+{% macro pct(v) -%}{% if v is none %}—{% else %}{{ v }}%{% endif %}{%- endmacro %}
+{% block content %}
+<div class="bar">
+  <h2>Sales report
+    <small>{{ report.start.strftime('%a %d %b %Y') }}{% if report.end != report.start %} – {{ report.end.strftime('%a %d %b %Y') }}{% endif %}</small></h2>
+  <a role="button" class="secondary" href="/reports/sales.csv?start={{ report.start.isoformat() }}&end={{ report.end.isoformat() }}">Download CSV</a>
+</div>
+
+<nav class="filters" aria-label="Period">
+  {% for p in presets %}
+  <a role="button" class="{% if preset != p %}outline {% endif %}filter-link" href="/reports/sales?preset={{ p }}"
+     {% if preset == p %}aria-current="page"{% endif %}>{{ labels[p] }}</a>
+  {% endfor %}
+</nav>
+<form method="get" action="/reports/sales" class="audit-filters">
+  <label>From <input type="date" name="start" value="{{ report.start.isoformat() }}" max="{{ today.isoformat() }}"></label>
+  <label>To <input type="date" name="end" value="{{ report.end.isoformat() }}" max="{{ today.isoformat() }}"></label>
+  <button type="submit" class="{% if preset != 'custom' %}secondary{% endif %}">Custom range</button>
+</form>
+<p class="muted">Business days run {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }} to {{ "%02d:00"|format(BUSINESS_DAY_START_HOUR) }}. Only paid bills count.</p>
+
+<div class="stats">
+  <article><small>Net sales</small><strong>{{ t.net_sales_paise|rupees }}</strong>
+    <small class="muted">{{ t.bill_count }} bills</small></article>
+  <article><small>Gross profit</small><strong>{{ t.gross_profit_paise|rupees }}</strong>
+    <small class="muted">margin {{ pct(t.gross_margin_percent) }}</small></article>
+  <article><small>Expenses</small><strong>{{ t.expenses_paise|rupees }}</strong></article>
+  <article class="{{ 'profit' if t.net_profit_paise >= 0 else 'loss' }}"><small>Net profit</small>
+    <strong>{{ t.net_profit_paise|rupees }}</strong></article>
+</div>
+<p class="muted note-line">Net profit = net sales - expenses recorded in this period.</p>
+
+<h3>Daily net sales</h3>
+{% if CHART_JS_AVAILABLE %}
+<div class="chart-box"><canvas id="daily-chart" role="img" aria-label="Line chart of daily net sales; the same numbers are in the table below"></canvas></div>
+{% else %}
+<p class="muted">Charts need app/static/chart.umd.min.js; showing tables instead.</p>
+{% endif %}
+<details {% if not CHART_JS_AVAILABLE %}open{% endif %}>
+  <summary>Daily table</summary>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Day</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Gross profit</th><th class="num">Expenses</th></tr></thead>
+    {% for d in report.daily %}
+    <tr><td>{{ d.day.strftime('%a %d %b') }}</td><td class="num">{{ d.bills }}</td><td class="num">{{ d.net_sales_paise|rupees }}</td>
+        <td class="num">{{ d.gross_profit_paise|rupees }}</td><td class="num">{{ d.expenses_paise|rupees }}</td></tr>
+    {% endfor %}
+  </table></div>
+</details>
+
+<h3>Peak hours <small class="muted">by the hour guests were seated</small></h3>
+{% if CHART_JS_AVAILABLE %}
+<div class="chart-box"><canvas id="hours-chart" role="img" aria-label="Bar chart of net sales by hour of day; the same numbers are in the table below"></canvas></div>
+{% endif %}
+<details {% if not CHART_JS_AVAILABLE %}open{% endif %}>
+  <summary>Hourly table</summary>
+  <table>
+    <thead><tr><th>Hour</th><th class="num">Bills</th><th class="num">Net sales</th></tr></thead>
+    {% for h in report.hours if h.bills %}
+    <tr><td>{{ '%02d:00'|format(h.hour) }}</td><td class="num">{{ h.bills }}</td><td class="num">{{ h.net_sales_paise|rupees }}</td></tr>
+    {% endfor %}
+  </table>
+</details>
+
+<h3>Summary</h3>
+<table class="summary-table">
+  <tr><td>Gross sales (menu revenue at list price)</td><td class="num">{{ t.gross_sales_paise|rupees }}</td></tr>
+  <tr><td>Bill discounts</td><td class="num">−{{ t.discounts_paise|rupees }}</td></tr>
+  <tr class="grand"><td>Net sales</td><td class="num">{{ t.net_sales_paise|rupees }}</td></tr>
+  <tr><td>Cost of goods</td><td class="num">−{{ t.cost_of_goods_paise|rupees }}</td></tr>
+  <tr class="grand"><td>Gross profit ({{ pct(t.gross_margin_percent) }})</td><td class="num">{{ t.gross_profit_paise|rupees }}</td></tr>
+  {% for c, amount in t.expenses_by_category_paise.items() if amount %}
+  <tr><td>Expense: {{ c }}</td><td class="num">{{ amount|rupees }}</td></tr>
+  {% endfor %}
+  <tr><td>Expenses total</td><td class="num">{{ t.expenses_paise|rupees }}</td></tr>
+  <tr class="grand"><td>Net profit (net sales - expenses)</td><td class="num {{ 'ok-text' if t.net_profit_paise >= 0 else 'danger-text' }}">{{ t.net_profit_paise|rupees }}</td></tr>
+  <tr><td>GST collected <small class="muted">(passed to government, not revenue)</small></td><td class="num">{{ t.gst_paise|rupees }}</td></tr>
+  <tr><td>Bills · average bill (net)</td><td class="num">{{ t.bill_count }} · {{ t.average_bill_paise|rupees }}</td></tr>
+  <tr><td>Average daily net sales ({{ t.days }} days)</td><td class="num">{{ t.average_daily_net_sales_paise|rupees }}</td></tr>
+  <tr><td>Guests · average spend per guest</td><td class="num">{{ t.guests }} · {{ t.average_spend_per_guest_paise|rupees }}</td></tr>
+</table>
+
+<h3>Payment modes</h3>
+<table>
+  <thead><tr><th>Mode</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Share</th></tr></thead>
+  {% for mode, m in report.payment_modes.items() %}
+  <tr><td>{{ 'UPI' if mode == 'upi' else mode|capitalize }}</td><td class="num">{{ m.bills }}</td>
+      <td class="num">{{ m.net_sales_paise|rupees }}</td><td class="num">{{ pct(m.share_percent) }}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Menu-wise <small class="muted">tap a column to sort · ★ top 5 by profit · ▼ lowest 5 by quantity</small></h3>
+<div class="table-scroll">
+<table class="sortable" id="menu-table">
+  <thead><tr>
+    <th data-sort-type="text">Dish</th><th data-sort-type="text">Category</th>
+    <th class="num" data-sort-type="num">Qty</th><th class="num" data-sort-type="num">Revenue</th>
+    <th class="num" data-sort-type="num">Cost</th><th class="num" data-sort-type="num">Profit</th>
+    <th class="num" data-sort-type="num">Margin</th><th class="num" data-sort-type="num">Share</th>
+  </tr></thead>
+  <tbody>
+  {% for r in report.menu %}
+  <tr class="{% if r.top_profit %}top{% endif %}{% if r.low_qty %} low{% endif %}">
+    <td data-v="{{ r.name|lower }}">{% if r.top_profit %}<span title="Top 5 by profit">★</span> {% endif %}{% if r.low_qty %}<span title="Lowest 5 by quantity">▼</span> {% endif %}{{ r.name }}{% if r.archived %} <small class="muted">(archived)</small>{% endif %}</td>
+    <td data-v="{{ r.category|lower }}">{{ r.category }}</td>
+    <td class="num" data-v="{{ r.qty }}">{{ r.qty }}</td>
+    <td class="num" data-v="{{ r.revenue_paise }}">{{ r.revenue_paise|rupees }}</td>
+    <td class="num" data-v="{{ r.cost_paise }}">{{ r.cost_paise|rupees }}</td>
+    <td class="num" data-v="{{ r.profit_paise }}">{{ r.profit_paise|rupees }}</td>
+    <td class="num" data-v="{{ r.margin_percent if r.margin_percent is not none else -1000 }}">{{ pct(r.margin_percent) }}</td>
+    <td class="num" data-v="{{ r.share_percent if r.share_percent is not none else -1 }}">{{ pct(r.share_percent) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h4>By category</h4>
+<table>
+  <thead><tr><th>Category</th><th class="num">Qty</th><th class="num">Revenue</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Share</th></tr></thead>
+  {% for c in report.categories %}
+  <tr><td>{{ c.category }}</td><td class="num">{{ c.qty }}</td><td class="num">{{ c.revenue_paise|rupees }}</td>
+      <td class="num">{{ c.profit_paise|rupees }}</td><td class="num">{{ pct(c.margin_percent) }}</td><td class="num">{{ pct(c.share_percent) }}</td></tr>
+  {% endfor %}
+  <tr><td>Menu revenue (list price)</td><td></td><td class="num">{{ report.menu_revenue_paise|rupees }}</td><td colspan="3"></td></tr>
+  <tr><td>Bill discounts</td><td></td><td class="num">−{{ t.discounts_paise|rupees }}</td><td colspan="3"></td></tr>
+  <tr class="grand"><td>Net sales</td><td></td><td class="num">{{ t.net_sales_paise|rupees }}</td><td colspan="3"></td></tr>
+</table>
+
+{#- Chart data as JSON (tojson escapes <, > and &, so it can't break out of the tag) -#}
+<script type="application/json" id="sales-data">{{ {
+  "daily": report.daily|map(attribute='net_sales_paise')|list,
+  "days": report.daily|map(attribute='day')|map('string')|list,
+  "hours": report.hours|map(attribute='net_sales_paise')|list,
+  "hourBills": report.hours|map(attribute='bills')|list
+}|tojson }}</script>
+{% if CHART_JS_AVAILABLE %}<script src="/static/chart.umd.min.js"></script>{% endif %}
+<script src="/static/sales.js"></script>
+{% endblock %}

@@ -95,7 +95,7 @@ def test_table_freed_after_payment(db, clock):
     order_id = _billable(db, [("naan", 1)])
     bill, _ = billing.generate_bill(order_id, 0, db["staff"]["counter"])
     clock.advance(minutes=4)
-    paid, events = billing.pay_bill(bill["bill_id"], "upi")
+    paid, events = billing.pay_bill(bill["bill_id"], "upi", db["staff"]["counter"])
     assert paid["paid_at"] == clock.current and paid["payment_mode"] == "upi"
     row = _table(1)
     assert row["status"] == "available"
@@ -106,14 +106,14 @@ def test_table_freed_after_payment(db, clock):
     # Table can be seated again, and the bill can't be paid twice
     tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)
     with pytest.raises(ServiceError, match="already paid"):
-        billing.pay_bill(bill["bill_id"], "cash")
+        billing.pay_bill(bill["bill_id"], "cash", db["staff"]["counter"])
 
 
 def test_pay_rejects_unknown_mode(db):
     order_id = _billable(db, [("naan", 1)])
     bill, _ = billing.generate_bill(order_id, 0, db["staff"]["counter"])
     with pytest.raises(ServiceError):
-        billing.pay_bill(bill["bill_id"], "cheque")
+        billing.pay_bill(bill["bill_id"], "cheque", db["staff"]["counter"])
     assert _table(1)["status"] == "billing"
 
 

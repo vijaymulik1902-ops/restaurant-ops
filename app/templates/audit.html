@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit log · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}audit{% endblock %}
+{% macro show(v) -%}
+  {%- if v is none %}—{% else %}{% for k, val in v.items() %}<span class="kv"><b>{{ k }}</b> {{ val }}</span>{% endfor %}{% endif -%}
+{%- endmacro %}
+{% macro page_link(n, label) -%}
+  <a role="button" class="secondary outline" href="/audit?page={{ n }}{% for k, v in filters.items() if v %}&{{ k }}={{ v|string|urlencode }}{% endfor %}">{{ label }}</a>
+{%- endmacro %}
+{% block content %}
+<div class="bar"><h2>Audit log <small>{{ total }} entries</small></h2></div>
+<form method="get" action="/audit" class="audit-filters">
+  <label>From <input type="date" name="date_from" value="{{ filters.date_from or '' }}"></label>
+  <label>To <input type="date" name="date_to" value="{{ filters.date_to or '' }}"></label>
+  <label>Staff
+    <select name="staff_id">
+      <option value="">Everyone</option>
+      {% for s in staff_options %}<option value="{{ s.id }}" {% if filters.staff_id == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Action
+    <select name="action">
+      <option value="">All actions</option>
+      {% for a in actions %}<option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a|replace('_', ' ') }}</option>{% endfor %}
+    </select>
+  </label>
+  <button type="submit">Filter</button>
+</form>
+
+{% if rows %}
+<div class="table-scroll">
+<table class="audit">
+  <thead><tr><th>When</th><th>Who</th><th>Action</th><th>What</th><th>Before</th><th>After</th><th>Reason</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr class="{% if r.highlight %}flagged{% endif %}">
+    <td class="nowrap">{{ r.at.strftime('%d %b %H:%M') }}</td>
+    <td>{{ r.staff_name }}</td>
+    <td>{{ r.action|replace('_', ' ') }}{% if r.highlight %}<br><strong class="flag">{{ r.highlight }}</strong>{% endif %}</td>
+    <td class="nowrap">{{ r.entity|replace('_', ' ') }} #{{ r.entity_id }}</td>
+    <td>{{ show(r.old) }}</td>
+    <td>{{ show(r.new) }}</td>
+    <td>{{ r.reason or '' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="pager">
+  {% if page > 1 %}{{ page_link(page - 1, '← Newer') }}{% endif %}
+  <span>Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}{{ page_link(page + 1, 'Older →') }}{% endif %}
+</div>
+{% else %}
+<p class="muted">No entries match.</p>
+{% endif %}
+{% endblock %}

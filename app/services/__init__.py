@@ -58,3 +58,18 @@ def clean_reason(reason: str | None) -> str:
     if len(reason) > MAX_REASON_LEN:
         raise ServiceError(f"Reason is too long (max {MAX_REASON_LEN} characters)")
     return reason
+
+
+MAX_REPORT_DAYS = 366
+
+
+def validate_range(start: date, end: date) -> None:
+    """Report date ranges: end not before start, at most 366 days, sane years."""
+    if not isinstance(start, date) or not isinstance(end, date):
+        raise ServiceError("Pick a start and end date")
+    if end < start:
+        raise ServiceError("The end date is before the start date")
+    if (end - start).days + 1 > MAX_REPORT_DAYS:
+        raise ServiceError(f"Pick a range of at most {MAX_REPORT_DAYS} days")
+    if start.year < 2000 or end.year > 2100:
+        raise ServiceError("Pick dates between 2000 and 2100")

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from app.config import GST_PERCENT
 from app.db import now, read_session, write_session
 from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem, Staff
-from app.services import Event, ServiceError
+from app.services import Event, ServiceError, audit
 from app.services.orders import check_version
 from app.services.tables import get_active_staff, table_events
 
@@ -97,17 +97,31 @@ def generate_bill(order_id: int, discount_paise: int, by_staff_id: int,
         table.status_since = ts
         s.flush()
 
+        audit.record(s, staff.id, audit.BILL_GENERATED, "bill", bill.id, new={
+            "bill_no": bill.bill_no, "order_id": order.id, "table_number": table.number,
+            "subtotal_paise": subtotal, "discount_paise": discount_paise, "gst_paise": gst,
+            "total_paise": bill.total_paise,
+        })
+        if discount_paise:
+            audit.record(s, staff.id, audit.BILL_DISCOUNT, "bill", bill.id, new={
+                "bill_no": bill.bill_no, "discount_paise": discount_paise, "subtotal_paise": subtotal,
+                "percent": round(discount_paise * 100 / subtotal, 2),
+            })
+
         result = _bill_result(bill, order, table)
         events = _bill_events(result, table, order)
     return result, events
 
 
-def pay_bill(bill_id: int, payment_mode: str) -> tuple[dict, list[Event]]:
-    """Settle a bill: order -> paid (closed_at set), table -> available."""
+def pay_bill(bill_id: int, payment_mode: str, by_staff_id: int) -> tuple[dict, list[Event]]:
+    """Settle a bill: order -> paid (closed_at set), table -> available. Audited."""
     if payment_mode not in PAYMENT_MODES:
         raise ServiceError("Choose a payment mode: " + ", ".join(PAYMENT_MODES))
 
     with write_session() as s:
+        staff = get_active_staff(s, by_staff_id)
+        if staff.role not in BILLING_ROLES:
+            raise ServiceError("Only the counter or a manager can take payment")
         bill = s.get(Bill, bill_id)
         if bill is None:
             raise ServiceError("Bill not found")
@@ -127,6 +141,10 @@ def pay_bill(bill_id: int, payment_mode: str) -> tuple[dict, list[Event]]:
         table.status_since = ts
         s.flush()
 
+        audit.record(s, staff.id, audit.BILL_PAID, "bill", bill.id,
+                     old={"paid": False},
+                     new={"paid": True, "bill_no": bill.bill_no, "payment_mode": payment_mode,
+                          "total_paise": bill.total_paise})
         result = _bill_result(bill, order, table)
         events = _bill_events(result, table, order)
     return result, events

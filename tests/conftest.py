@@ -15,7 +15,6 @@ import pytest  # noqa: E402
 from app.db import Base, init_db, write_engine, write_session  # noqa: E402
 from app.models import DiningTable, MenuItem, Staff  # noqa: E402
 
-SERVICE_MODULES = ("tables", "orders", "kitchen", "billing", "reports")
 TEST_PIN = "1234"
 # Low bcrypt cost keeps the suite fast; every test staff member uses TEST_PIN
 PIN_HASH = bcrypt.hashpw(TEST_PIN.encode(), bcrypt.gensalt(rounds=4)).decode()
@@ -82,15 +81,13 @@ class Clock:
 
 
 @pytest.fixture
-def clock(monkeypatch):
-    c = Clock(datetime(2026, 9, 25, 12, 0, 0))
-    import importlib
+def clock():
+    """Fixed, advanceable time for all services (the same override `seed --history` uses)."""
+    from app.clock_override import override_now
 
-    for name in SERVICE_MODULES:
-        module = importlib.import_module(f"app.services.{name}")
-        if hasattr(module, "now"):
-            monkeypatch.setattr(module, "now", c)
-    return c
+    c = Clock(datetime(2026, 9, 25, 12, 0, 0))
+    with override_now(c):
+        yield c
 
 
 def new_kot_id() -> str:

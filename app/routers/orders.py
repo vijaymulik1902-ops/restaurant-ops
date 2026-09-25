@@ -20,15 +20,22 @@ def _new_kot_id() -> str:
 
 @router.get("/orders/{order_id}")
 def order_page(request: Request, order_id: Id, staff: CurrentStaff = Depends(floor_staff)):
-    screen = orders.order_screen(order_id, staff.id, staff.role)
+    screen = orders.order_screen(order_id, staff.id, staff.role, staff.section)
     # A fresh KOT id per render: a double-tap or retry of THIS form reuses it
     return render(request, "order.html", staff, **screen, kot_id=_new_kot_id(), selection={})
 
 
 @router.get("/orders/{order_id}/items")
 def order_items(request: Request, order_id: Id, staff: CurrentStaff = Depends(floor_staff)):
-    screen = orders.order_screen(order_id, staff.id, staff.role, include_menu=False)
+    screen = orders.order_screen(order_id, staff.id, staff.role, staff.section, include_menu=False)
     return partial(request, "_order_items.html", order=screen["order"])
+
+
+@router.get("/orders/{order_id}/menu")
+def order_menu(request: Request, order_id: Id, staff: CurrentStaff = Depends(floor_staff)):
+    """Just the menu block, reloaded live when the manager changes the menu."""
+    screen = orders.order_screen(order_id, staff.id, staff.role, staff.section)
+    return partial(request, "_order_menu.html", order=screen["order"], menu=screen["menu"], selection={})
 
 
 def _text(value) -> str:
@@ -82,7 +89,7 @@ async def send_kot(request: Request, order_id: Id, staff: CurrentStaff = Depends
         )
     except ServiceError as e:
         # Re-render with the waiter's picks intact. Nothing was saved, so a fresh KOT id is safe.
-        screen = await run_in_threadpool(orders.order_screen, order_id, staff.id, staff.role)
+        screen = await run_in_threadpool(orders.order_screen, order_id, staff.id, staff.role, staff.section)
         return render(request, "order.html", staff, status_code=422, **screen,
                       kot_id=_new_kot_id(), selection=_selection(form),
                       flash={"message": e.message, "kind": "error"})

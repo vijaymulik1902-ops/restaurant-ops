@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Expenses · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}expenses{% endblock %}
+{% block content %}
+<div class="bar"><h2>Expenses <small>manager only</small></h2></div>
+
+<details class="add-dish" open>
+  <summary>Add an expense</summary>
+  <form method="post" action="/expenses" data-once class="add-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Date <input type="date" name="spent_on" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required></label>
+    <label>Category
+      <select name="category" required>
+        {% for c in categories %}<option value="{{ c }}">{{ c|capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Amount (₹) <input type="text" name="amount" inputmode="decimal" required></label>
+    <label>Note <input type="text" name="note" maxlength="160" placeholder="Supplier, bill no…"></label>
+    <button type="submit" class="big">Add expense</button>
+  </form>
+</details>
+
+<form method="get" action="/expenses" class="audit-filters">
+  <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+  <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+  <button type="submit">Show</button>
+</form>
+
+<h3>By category <small class="muted">{{ start.strftime('%d %b') }} – {{ end.strftime('%d %b %Y') }}</small></h3>
+<table>
+  {% for c, amount in by_category.items() %}
+  <tr><td>{{ c|capitalize }}</td><td class="num">{{ amount|rupees }}</td></tr>
+  {% endfor %}
+  <tr class="grand"><td><strong>Total</strong></td><td class="num"><strong>{{ total_paise|rupees }}</strong></td></tr>
+</table>
+
+<h3>Entries ({{ rows|length }})</h3>
+{% if rows %}
+<ul class="dish-list">
+  {% for e in rows %}
+  <li class="dish expense" id="expense-{{ e.expense_id }}">
+    <span class="dname">{{ e.amount_paise|rupees }} · {{ e.category|capitalize }}
+      <small>{{ e.spent_on.strftime('%a %d %b') }}{% if e.note %} · {{ e.note }}{% endif %} · by {{ e.created_by }}</small></span>
+    <details class="item-cancel">
+      <summary aria-label="Delete expense" title="Delete">✕</summary>
+      <form method="post" action="/expenses/{{ e.expense_id }}/delete" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="reason" maxlength="120" placeholder="Why? (optional)">
+        <button type="submit" class="danger">Yes, delete {{ e.amount_paise|rupees }}</button>
+      </form>
+    </details>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No expenses in this period.</p>
+{% endif %}
+{% endblock %}

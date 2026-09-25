@@ -131,15 +131,27 @@ def test_kitchen_and_cancel_paths_never_load_cost(db):
     assert seen == []
 
 
-@pytest.mark.parametrize("item_status, role, allowed", [
-    ("pending", "waiter", True), ("pending", "counter", True), ("pending", "manager", True),
-    ("pending", "chef", False),
-    ("preparing", "waiter", False), ("preparing", "counter", False), ("preparing", "manager", True),
-    ("ready", "waiter", False), ("ready", "manager", True),
-    ("served", "manager", False), ("cancelled", "manager", False),
+@pytest.mark.parametrize("item_status, role, staff_section, allowed", [
+    # Cancel pending item: waiter (own section), counter, manager; never chef
+    ("pending", "waiter", "A", True), ("pending", "waiter", "B", False), ("pending", "waiter", None, False),
+    ("pending", "counter", None, True), ("pending", "manager", None, True), ("pending", "chef", None, False),
+    # Cancel preparing/ready item: manager only
+    ("preparing", "waiter", "A", False), ("preparing", "counter", None, False), ("preparing", "manager", None, True),
+    ("ready", "waiter", "A", False), ("ready", "counter", None, False), ("ready", "manager", None, True),
+    ("served", "manager", None, False), ("cancelled", "manager", None, False),
 ])
-def test_can_cancel_item_matches_access_matrix(item_status, role, allowed):
-    assert kitchen.can_cancel_item(item_status, "open", role) is allowed
+def test_can_cancel_item_matches_access_matrix(item_status, role, staff_section, allowed):
+    # The table is in section A
+    assert kitchen.can_cancel_item(item_status, "open", role, staff_section, "A") is allowed
+
+
+def test_waiter_cannot_cancel_pending_item_in_another_section(db):
+    item_id = _item(db)  # table 1, section A
+    with pytest.raises(ServiceError, match="section A"):
+        kitchen.cancel_item(item_id, "Wrong item entered", db["staff"]["waiter2"])  # Sneha, section B
+    assert _status(item_id) == "pending"
+    kitchen.cancel_item(item_id, "Wrong item entered", db["staff"]["counter"])
+    assert _status(item_id) == "cancelled"
 
 
 def test_can_cancel_item_false_once_billed():

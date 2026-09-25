@@ -4,6 +4,7 @@ Usage:
     python -m app.seed                  # 20 tables, keeps existing data
     python -m app.seed --reset          # wipe and reseed
     python -m app.seed --reset --tables 150
+    python -m app.seed --reset --history 30 [--seed-value 42]   # plus 30 days of demo history
 """
 import argparse
 import math
@@ -111,7 +112,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tables", type=int, default=20)
     parser.add_argument("--reset", action="store_true")
+    parser.add_argument("--history", type=int, default=0, metavar="N",
+                        help="also simulate N past business days through the real services")
+    parser.add_argument("--seed-value", type=int, default=42, help="random seed for --history (default 42)")
     args = parser.parse_args()
     if args.tables < 1:
         raise SystemExit("--tables must be at least 1")
     seed(args.tables, args.reset)
+    if args.history:
+        from app.history import HistoryError, generate_history, print_summary
+        from app.migrations import ensure_schema
+
+        ensure_schema()
+        try:
+            print_summary(generate_history(args.history, args.seed_value))
+        except HistoryError as e:
+            raise SystemExit(str(e))

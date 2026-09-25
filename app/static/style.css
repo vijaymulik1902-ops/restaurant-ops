@@ -190,3 +190,49 @@ table.mismatch td { color: #ffbcbc; background: #3a1010; }
 .toggle-on, .toggle-off { width: 8rem; margin: 0; font-weight: 800; }
 .toggle-on { background: var(--ok); border-color: var(--ok); }
 .toggle-off { background: #4a1616; border-color: var(--red); color: #ffd6d6; }
+
+/* Audit log (manager) */
+.audit-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; align-items: end; }
+.audit-filters label { margin: 0; }
+.table-scroll { overflow-x: auto; }
+table.audit { font-size: .9rem; }
+table.audit .kv { display: block; white-space: nowrap; }
+table.audit tr.flagged td { background: #3a1010; }
+table.audit .flag { color: #ff9a9a; }
+.nowrap { white-space: nowrap; }
+.pager { display: flex; gap: .75rem; align-items: center; justify-content: center; margin: 1rem 0; }
+.pager [role="button"] { width: auto; }
+
+/* Menu management (manager) */
+.flash-warn { background: #4d3a0e; color: #ffe2a8; border: 1px solid var(--amber); }
+.add-dish { border: 1px solid #2a3441; border-radius: .5rem; padding: .5rem .75rem; margin-bottom: 1rem; }
+.add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; align-items: end; }
+.add-grid label { margin: 0; }
+.dish-admin-list { display: grid; gap: .6rem; }
+.dish-admin { margin: 0; padding: .75rem; }
+.dish-admin header { display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; margin-bottom: .4rem; padding: 0;
+                     background: none; border: none; }
+.dish-admin .margin { margin-left: auto; font-weight: 700; }
+.dish-admin.warn { border: 2px solid var(--amber); }
+.dish-admin.off strong { text-decoration: line-through; color: var(--muted); }
+.warn-text { color: #ffcf6e; font-weight: 600; margin: 0 0 .4rem; }
+.edit-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .5rem; align-items: end; }
+.edit-row form { margin: 0; display: flex; flex-direction: column; }
+.edit-row label { margin: 0; }
+.edit-row button { margin: 0; }
+.dish-admin.archived { opacity: .7; border: 1px dashed #3a4655; }
+.more-actions { margin-top: .5rem; }
+.more-actions summary { color: var(--muted); }
+
+/* Sales report (manager) */
+.filter-link { width: auto; flex: 1; text-align: center; }
+.stats article.profit strong { color: #6fdc8c; }
+.stats article.loss strong { color: #ff8a8a; }
+.note-line { margin-top: .25rem; }
+.chart-box { position: relative; height: 16rem; margin-bottom: .5rem; }
+.summary-table .grand td { font-weight: 800; }
+table.sortable th { cursor: pointer; user-select: none; white-space: nowrap; }
+table.sortable th[aria-sort="ascending"]::after { content: " ▲"; }
+table.sortable th[aria-sort="descending"]::after { content: " ▼"; }
+table.sortable tr.top td:first-child { color: #6fdc8c; }
+table.sortable tr.low td:first-child { color: #ffcf6e; }

@@ -52,7 +52,11 @@ Priority order: correctness > reliability > speed > looks. Keep it simple, no ne
 | Toggle item availability (86 an item)        |  no    |  yes |   no    |   yes   |
 | Generate bill, take payment                  |  no    |  no  |   yes   |   yes   |
 | Discount up to 10%                           |  no    |  no  |   yes   |   yes   |
-| Discount > 10%, cancel started item          |  no    |  no  |   no    |   yes   |
+| Discount > 10%                               |  no    |  no  |   no    |   yes   |
+| Cancel pending item (not started)            | own section | no |  yes  |   yes   |
+| Cancel preparing/ready item                  |  no    |  no  |   no    |   yes   |
+| Cancel order with no KOTs                    | own order | no  |   yes   |   yes   |
+| Cancel order with KOTs                       |  no    |  no  |   no    |   yes   |
 | Day close (cash/UPI/card totals, mismatches) |  no    |  no  |   yes   |   yes   |
 | Menu prices: view                            |  yes   |  no  |   yes   |   yes   |
 | Menu prices / costs: edit, add dishes        |  no    |  no  |   no    |   yes   |

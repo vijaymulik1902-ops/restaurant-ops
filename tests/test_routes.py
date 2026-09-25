@@ -81,6 +81,13 @@ SCREENS = {
     "/counter/bills/{bill_id}": {"counter", "manager"},
     "/counter/bills/{bill_id}/print": {"counter", "manager"},
     "/kitchen/availability": {"chef", "manager"},
+    "/audit": {"manager"},
+    "/menu": {"manager"},
+    "/reports/sales": {"manager"},
+    "/reports/sales?preset=last_month": {"manager"},
+    "/reports/sales.csv?preset=this_week": {"manager"},
+    "/expenses": {"manager"},
+    "/audit?action=price_change&page=2": {"manager"},
 }
 
 
@@ -105,6 +112,15 @@ def test_each_screen_allows_its_roles_and_403s_others(world, role):
     ("counter", "post", "/kitchen/availability/1", {"available": "0"}),
     ("chef", "post", "/items/1/cancel", {"reason": "x"}),
     ("chef", "post", "/items/1/serve", {}),
+    ("counter", "post", "/menu", {"name": "X", "category": "Y", "station": "bar", "price": "10"}),
+    ("waiter", "post", "/menu/1/price", {"price": "1"}),
+    ("chef", "post", "/menu/1/cost", {"cost": "1"}),
+    ("counter", "post", "/menu/1/availability", {"available": "0"}),
+    ("counter", "post", "/menu/1/rename", {"name": "X"}),
+    ("waiter", "post", "/menu/1/archive", {"archived": "1"}),
+    ("counter", "post", "/expenses", {"spent_on": "2026-01-01", "category": "rent", "amount": "1"}),
+    ("chef", "post", "/expenses/1/delete", {}),
+    ("waiter", "post", "/expenses", {"spent_on": "2026-01-01", "category": "rent", "amount": "1"}),
 ])
 def test_actions_enforce_access_matrix(world, role, method, path, data):
     c = login(role)

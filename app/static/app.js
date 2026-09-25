@@ -161,15 +161,20 @@
     },
     order: function (d) { refreshOrder(d.order_id); },
     menu: function (d) { setDishAvailable(d); },
+    menu_changed: function () { refreshCard(document.getElementById('menu-block')); },
     bill: function () { /* table events already refresh the card */ }
   };
 
   var streamUrl = body.dataset.stream;
   var es = null;
   var retryMs = 1000;
+  var streamStopped = false;
+  var reconnectTimer = null;
   var statusEl = document.getElementById('live-status');
 
   function connect() {
+    clearTimeout(reconnectTimer); // never two streams (wake-up + pending retry)
+    if (es && es.readyState !== 2) es.close();
     es = new EventSource(streamUrl);
     es.onopen = function () {
       retryMs = 1000;
@@ -186,16 +191,33 @@
     });
     es.onerror = function () {
       es.close();
+      if (streamStopped) return;
       if (statusEl) statusEl.hidden = false;
-      setTimeout(connect, retryMs);
-      retryMs = Math.min(retryMs * 2, 15000);
+      // Logged out (or deactivated)? Stop retrying and go to the login screen.
+      fetch('/auth/check', { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 401) { stopStream(); window.location.href = '/login'; return; }
+          scheduleReconnect();
+        })
+        .catch(scheduleReconnect); // server unreachable: keep trying
     };
+  }
+  function scheduleReconnect() {
+    if (streamStopped) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, retryMs);
+    retryMs = Math.min(retryMs * 2, 15000);
+  }
+  function stopStream() {
+    streamStopped = true;
+    clearTimeout(reconnectTimer);
+    if (es) es.close();
   }
   if (streamUrl && window.EventSource) connect();
 
   // Phones suspend background tabs; reconnect as soon as the screen is visible again
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && streamUrl && es && es.readyState === 2) {
+    if (document.visibilityState === 'visible' && streamUrl && es && es.readyState === 2 && !streamStopped) {
       retryMs = 1000;
       connect();
     }
@@ -206,6 +228,7 @@
   // after the browser has collected the form data, so the clicked button's value is sent.
   document.addEventListener('submit', function (e) {
     var form = e.target;
+    if (form.getAttribute('action') === '/logout') stopStream(); // no reconnect attempts while leaving
     if (!form.hasAttribute('data-once')) return;
     if (form.dataset.sent) { e.preventDefault(); return; }
     form.dataset.sent = '1';
@@ -243,6 +266,8 @@
   function restoreDraft() {
     if (!draftKey) return;
     if (body.hasAttribute('data-kot-sent')) {
+      // Page loaded right after a successful send: start a fresh draft (once only)
+      body.removeAttribute('data-kot-sent');
       try { sessionStorage.removeItem(draftKey); } catch (e) { /* ignore */ }
       return;
     }
@@ -295,6 +320,15 @@
   });
 
   restoreDraft();
+
+  // The menu block was reloaded (price change, new/renamed/archived dish): put the
+  // waiter's picks back from the draft and re-apply any search they had typed.
+  htmx.onLoad(function (el) {
+    if (el.id !== 'menu-block') return;
+    restoreDraft();
+    var search = document.getElementById('menu-search');
+    if (search && search.value) search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 
   /* ---------- counter: status filter ---------- */
   document.addEventListener('click', function (e) {

@@ -281,3 +281,73 @@ def test_production_refuses_dev_secret_key():
         auth.check_production_settings(secret_key=auth.DEV_SECRET_KEY, cookie_secure=True)
     auth.check_production_settings(secret_key=auth.DEV_SECRET_KEY, cookie_secure=False)  # local dev ok
     auth.check_production_settings(secret_key="a-real-long-random-key", cookie_secure=True)
+
+
+# ---------- Round 5, Part A ----------
+
+def test_cancel_icon_respects_waiter_section(db):
+    kot = open_and_order(db, [("naan", 1)])  # table 1, section A
+    url = f"/orders/{kot['order_id']}"
+    assert "Cancel 1 × Butter Naan" in login("waiter").get(url).text      # Rahul, section A
+    other = login("waiter2")                                               # Sneha, section B
+    assert "Cancel 1 × Butter Naan" not in other.get(url).text
+    other.post(f"/items/{_item_id(kot['order_id'])}/cancel", data={"reason": "x"})
+    assert orders.get_order(kot["order_id"])["items"][0]["status"] == "pending"
+    assert "Cancel 1 × Butter Naan" in login("counter").get(url).text
+
+
+def test_cancel_order_button_matches_matrix(db):
+    opened, _ = tables.open_table(db["tables"][0], db["staff"]["waiter"], 2)  # Rahul's order, no KOT
+    url = f"/orders/{opened['order_id']}"
+    shown = {r: "Cancel this order" in login(r).get(url).text for r in ("waiter", "waiter2", "counter", "manager")}
+    assert shown == {"waiter": True, "waiter2": False, "counter": True, "manager": True}
+
+
+def test_stream_is_401_when_not_logged_in(db):
+    resp = TestClient(app, follow_redirects=False).get("/stream")
+    assert resp.status_code == 401 and "location" not in resp.headers
+
+
+def test_auth_check(db):
+    anon = TestClient(app)
+    assert anon.get("/auth/check").status_code == 401
+    c = login("chef")
+    resp = c.get("/auth/check")
+    assert resp.status_code == 200 and resp.json() == {"ok": True, "role": "chef"}
+    assert resp.headers["cache-control"] == "no-store"
+
+
+def test_logout_clears_whole_session_including_csrf(db):
+    c = login("waiter")
+    old_token = c.headers["X-CSRF-Token"]
+    assert c.post("/logout").status_code == 303
+    assert c.get("/auth/check").status_code == 401
+    # The old token no longer works for anything, even on a new login attempt
+    assert c.post("/login", data={"name": "Rahul", "pin": TEST_PIN}).status_code == 403
+    assert csrf_from(c.get("/login").text) != old_token
+
+
+def test_open_stream_ends_when_staff_deactivated(db, monkeypatch):
+    import threading
+
+    from app.db import write_session
+    from app.models import Staff
+    from app.routers import stream as stream_mod
+
+    monkeypatch.setattr(stream_mod, "RECHECK_SECONDS", 0.2)
+    c = login("waiter")
+    done = threading.Event()
+
+    def consume():
+        with c.stream("GET", "/stream") as resp:
+            assert resp.status_code == 200
+            for _ in resp.iter_lines():
+                pass
+        done.set()
+
+    t = threading.Thread(target=consume, daemon=True)
+    t.start()
+    assert not done.wait(0.6)  # still connected while active
+    with write_session() as s:
+        s.get(Staff, db["staff"]["waiter"]).active = False
+    assert done.wait(3), "stream should close after deactivation"

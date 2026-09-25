@@ -7,7 +7,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.db import now, read_session, write_session
 from app.models import Bill, DiningTable, Kot, MenuItem, Order, OrderItem, Staff
-from app.services import Event, ServiceError, business_day_bounds, business_day_of, clean_reason
+from app.services import Event, ServiceError, audit, business_day_bounds, business_day_of, clean_reason
 from app.services.kitchen import can_cancel_item
 from app.services.menu import list_menu
 from app.services.tables import get_active_staff, table_events
@@ -109,6 +109,8 @@ def send_kot(
             m = menu.get(menu_item_id)
             if m is None:
                 raise ServiceError("Unknown menu item")
+            if m.archived:
+                raise ServiceError(f"{m.name} is no longer on the menu")
             if not m.available:
                 raise ServiceError(f"{m.name} is not available")
 
@@ -217,6 +219,10 @@ def cancel_order(order_id: int, reason: str, by_staff_id: int,
             raise ServiceError("Some items were served; bill the order instead")
 
         table = s.get(DiningTable, order.table_id)
+        audit.record(s, staff.id, audit.ORDER_CANCEL, "order", order.id,
+                     old={"status": order.status, "table_number": table.number,
+                          "item_statuses": {str(it.id): it.status for it in items if it.status != "cancelled"}},
+                     new={"status": "cancelled"}, reason=reason)
         events: list[Event] = []
         for it in items:
             if it.status != "cancelled":
@@ -250,7 +256,7 @@ def get_order(order_id: int) -> dict:
                 Order.id, Order.status, Order.version, Order.guest_count, Order.created_at,
                 Order.waiter_id, Staff.name.label("waiter_name"),
                 DiningTable.id.label("table_id"), DiningTable.number.label("table_number"),
-                Bill.id.label("bill_id"),
+                DiningTable.section, Bill.id.label("bill_id"),
             )
             .join(DiningTable, DiningTable.id == Order.table_id)
             .join(Staff, Staff.id == Order.waiter_id)
@@ -285,7 +291,7 @@ def get_order(order_id: int) -> dict:
         "order_id": header.id, "status": header.status, "version": header.version,
         "guest_count": header.guest_count, "created_at": header.created_at,
         "waiter_id": header.waiter_id, "waiter_name": header.waiter_name,
-        "table_id": header.table_id, "table_number": header.table_number,
+        "table_id": header.table_id, "table_number": header.table_number, "section": header.section,
         "items": items, "total_paise": total,
         "has_kot": bool(items),  # every KOT carries at least one item
         "in_kitchen": sum(1 for i in items if i["status"] in ("pending", "preparing")),
@@ -293,12 +299,14 @@ def get_order(order_id: int) -> dict:
     }
 
 
-def order_screen(order_id: int, staff_id: int, role: str, include_menu: bool = True) -> dict:
+def order_screen(order_id: int, staff_id: int, role: str, section: str | None = None,
+                 include_menu: bool = True) -> dict:
     """Everything the order screen needs: the order (each item flagged with whether this
     user may cancel it), the menu, and whether the cancel-order button is shown. Read-only."""
     order = get_order(order_id)
     for item in order["items"]:
-        item["can_cancel"] = can_cancel_item(item["status"], order["status"], role)
+        item["can_cancel"] = can_cancel_item(item["status"], order["status"], role,
+                                             section, order["section"])
     return {
         "order": order,
         "menu": list_menu() if include_menu and order["status"] == "open" else [],
