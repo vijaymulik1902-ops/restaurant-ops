@@ -20,28 +20,28 @@ WAITERS = ["Rahul", "Sneha", "Amit", "Pooja", "Rohan", "Kiran", "Neha"]
 CHEFS = [("Suresh", "tandoor"), ("Mahesh", "kitchen"), ("Ganesh", "bar")]
 COUNTER = [("Counter", "counter"), ("Manager", "manager")]
 
-# name, category, station, price in rupees
+# name, category, station, price in rupees, approx cost per plate in rupees
 MENU = [
-    ("Paneer Tikka", "Starters", "tandoor", 240),
-    ("Chicken Tikka", "Starters", "tandoor", 280),
-    ("Veg Manchurian", "Starters", "kitchen", 190),
-    ("Crispy Corn", "Starters", "kitchen", 180),
-    ("Tandoori Roti", "Breads", "tandoor", 25),
-    ("Butter Naan", "Breads", "tandoor", 45),
-    ("Garlic Naan", "Breads", "tandoor", 60),
-    ("Paneer Butter Masala", "Mains", "kitchen", 260),
-    ("Dal Tadka", "Mains", "kitchen", 180),
-    ("Veg Kolhapuri", "Mains", "kitchen", 220),
-    ("Chicken Kolhapuri", "Mains", "kitchen", 300),
-    ("Butter Chicken", "Mains", "kitchen", 320),
-    ("Jeera Rice", "Rice", "kitchen", 140),
-    ("Veg Biryani", "Rice", "kitchen", 220),
-    ("Chicken Biryani", "Rice", "kitchen", 280),
-    ("Masala Chaas", "Beverages", "bar", 50),
-    ("Sweet Lassi", "Beverages", "bar", 70),
-    ("Fresh Lime Soda", "Beverages", "bar", 60),
-    ("Cold Coffee", "Beverages", "bar", 110),
-    ("Mineral Water", "Beverages", "bar", 20),
+    ("Paneer Tikka", "Starters", "tandoor", 240, 95),
+    ("Chicken Tikka", "Starters", "tandoor", 280, 120),
+    ("Veg Manchurian", "Starters", "kitchen", 190, 60),
+    ("Crispy Corn", "Starters", "kitchen", 180, 55),
+    ("Tandoori Roti", "Breads", "tandoor", 25, 6),
+    ("Butter Naan", "Breads", "tandoor", 45, 12),
+    ("Garlic Naan", "Breads", "tandoor", 60, 16),
+    ("Paneer Butter Masala", "Mains", "kitchen", 260, 100),
+    ("Dal Tadka", "Mains", "kitchen", 180, 45),
+    ("Veg Kolhapuri", "Mains", "kitchen", 220, 70),
+    ("Chicken Kolhapuri", "Mains", "kitchen", 300, 130),
+    ("Butter Chicken", "Mains", "kitchen", 320, 140),
+    ("Jeera Rice", "Rice", "kitchen", 140, 35),
+    ("Veg Biryani", "Rice", "kitchen", 220, 70),
+    ("Chicken Biryani", "Rice", "kitchen", 280, 115),
+    ("Masala Chaas", "Beverages", "bar", 50, 12),
+    ("Sweet Lassi", "Beverages", "bar", 70, 22),
+    ("Fresh Lime Soda", "Beverages", "bar", 60, 14),
+    ("Cold Coffee", "Beverages", "bar", 110, 35),
+    ("Mineral Water", "Beverages", "bar", 20, 10),
 ]
 
 
@@ -89,8 +89,16 @@ def seed(table_count: int, reset: bool) -> None:
                 )
             )
 
-        for name, category, station, rupees in MENU:
-            s.add(MenuItem(name=name, category=category, station=station, price_paise=rupees * 100))
+        for name, category, station, rupees, cost_rupees in MENU:
+            s.add(
+                MenuItem(
+                    name=name,
+                    category=category,
+                    station=station,
+                    price_paise=rupees * 100,
+                    cost_paise=cost_rupees * 100,
+                )
+            )
 
     print(f"Seeded {DB_PATH}")
     print(f"{table_count} tables across sections {sections[0]}-{sections[-1]}, {len(MENU)} menu items\n")

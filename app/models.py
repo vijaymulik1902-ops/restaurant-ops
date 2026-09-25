@@ -1,9 +1,10 @@
 """Data model. Money is always integer paise (₹1 = 100 paise) to avoid rounding errors."""
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -21,6 +22,7 @@ ORDER_STATUSES = ("open", "billed", "paid", "cancelled")
 ITEM_STATUSES = ("pending", "preparing", "ready", "served", "cancelled")
 STATIONS = ("tandoor", "kitchen", "bar")
 PAYMENT_MODES = ("cash", "upi", "card")
+EXPENSE_CATEGORIES = ("ingredients", "salaries", "rent", "utilities", "equipment", "other")
 
 
 def _in(col: str, values: tuple) -> str:
@@ -63,6 +65,7 @@ class MenuItem(Base):
     __table_args__ = (
         CheckConstraint(_in("station", STATIONS), name="ck_menu_station"),
         CheckConstraint("price_paise >= 0", name="ck_menu_price"),
+        CheckConstraint("cost_paise >= 0", name="ck_menu_cost"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -70,6 +73,7 @@ class MenuItem(Base):
     category: Mapped[str] = mapped_column(String(30))
     station: Mapped[str] = mapped_column(String(10))
     price_paise: Mapped[int] = mapped_column(Integer)
+    cost_paise: Mapped[int] = mapped_column(Integer, default=0)  # approx ingredient cost per plate
     available: Mapped[bool] = mapped_column(Boolean, default=True)  # false = "86'd", can't be ordered
 
 
@@ -129,6 +133,7 @@ class OrderItem(Base):
         CheckConstraint(_in("station", STATIONS), name="ck_item_station"),
         CheckConstraint("qty > 0", name="ck_item_qty"),
         CheckConstraint("unit_price_paise >= 0", name="ck_item_price"),
+        CheckConstraint("unit_cost_paise >= 0", name="ck_item_cost"),
         CheckConstraint(
             "status != 'cancelled' OR cancel_reason IS NOT NULL", name="ck_item_cancel_reason"
         ),
@@ -149,6 +154,7 @@ class OrderItem(Base):
     station: Mapped[str] = mapped_column(String(10))  # snapshot of menu_item.station
     qty: Mapped[int] = mapped_column(Integer)
     unit_price_paise: Mapped[int] = mapped_column(Integer)  # price at time of ordering
+    unit_cost_paise: Mapped[int] = mapped_column(Integer, default=0)  # cost at time of ordering
     note: Mapped[str | None] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(10), default="pending")
     cancel_reason: Mapped[str | None] = mapped_column(String(120))
@@ -181,4 +187,22 @@ class Bill(Base):
     payment_mode: Mapped[str | None] = mapped_column(String(10))
     created_by: Mapped[int] = mapped_column(ForeignKey("staff.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
-    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)  # sales reports filter on this
+
+
+class Expense(Base):
+    """Money spent running the restaurant ("amount invested"), entered by the manager."""
+
+    __tablename__ = "expenses"
+    __table_args__ = (
+        CheckConstraint(_in("category", EXPENSE_CATEGORIES), name="ck_expense_category"),
+        CheckConstraint("amount_paise > 0", name="ck_expense_amount"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    spent_on: Mapped[date] = mapped_column(Date, index=True)
+    category: Mapped[str] = mapped_column(String(15))
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(String(160))
+    created_by: Mapped[int] = mapped_column(ForeignKey("staff.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
