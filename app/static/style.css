@@ -557,3 +557,7 @@ form.pay-grid { grid-template-columns: repeat(3, 1fr); }
 .fig-list { margin: 0; padding-left: 1.2rem; }
 .fig-list > li { margin-bottom: var(--s1); }
 @media (max-width: 600px) { .ai-form { grid-template-columns: 1fr; } }
+.ai-partial-note { margin: 0 0 var(--s2); padding: var(--s2) var(--s3); border-left: 4px solid var(--turmeric);
+                   background: var(--turmeric-12); font-weight: 600; }
+.ai-summary { margin: 0 0 var(--s2); padding-left: 1.2rem; }
+.ai-model { margin: var(--s1) 0 0; font-size: .8rem; }

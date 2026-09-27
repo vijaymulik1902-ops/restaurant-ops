@@ -23,6 +23,9 @@ BUSINESS_DAY_START_HOUR = int(os.getenv("BUSINESS_DAY_START_HOUR", "4"))
 # Default model: gemini-3.8-flash, the latest stable Flash model; free tier; supports function calling.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+# Used for the same step when the primary model is overloaded (503) or rate-limited (429):
+# gemini-3.5-flash-lite is a lighter stable model that supports function calling.
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite").strip()
 
 # Floor timers: minutes before a table/item turns red
 WARN_NO_ORDER_MIN = int(os.getenv("WARN_NO_ORDER_MIN", "10"))

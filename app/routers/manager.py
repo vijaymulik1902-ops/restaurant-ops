@@ -6,7 +6,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.background import BackgroundTask
 
 from app.auth import CurrentStaff, require_role
@@ -212,6 +212,13 @@ def insights_page(request: Request, preset: str | None = None, start: OptionalDa
 def insights_ask(request: Request, question: str = Form(""), staff: CurrentStaff = Depends(manager_only)):
     turn = ai_chat.ask(question, _conversation_id(request), staff.id)
     return partial(request, "_ai_turn.html", turn=turn)
+
+
+@router.get("/insights/progress")
+def insights_progress(request: Request, staff: CurrentStaff = Depends(manager_only)):
+    """Which step the pending answer is on (polled by the page while it waits)."""
+    return JSONResponse({"stage": ai_chat.progress(_conversation_id(request))},
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.post("/insights/new")

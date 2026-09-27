@@ -430,9 +430,28 @@
   });
 
   /* ---------- insights: suggested questions + clear box after asking ---------- */
+  var aiPending = false, aiPoll = null;
+  function aiStage(text) { var el = document.getElementById('ai-loading'); if (el) el.textContent = text; }
+  body.addEventListener('htmx:beforeRequest', function (e) {
+    if (!e.detail.elt || e.detail.elt.id !== 'ai-form') return;
+    if (aiPending) { e.preventDefault(); return; }  // one question at a time
+    aiPending = true;
+    aiStage('Thinking...');
+    aiPoll = setInterval(function () {  // show which step the server is on
+      fetch('/insights/progress', { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (aiPending && d && d.stage) aiStage(d.stage); })
+        .catch(function () {});
+    }, 700);
+  });
+  body.addEventListener('htmx:afterRequest', function (e) {
+    if (!e.detail.elt || e.detail.elt.id !== 'ai-form') return;
+    aiPending = false;
+    clearInterval(aiPoll);
+  });
   document.addEventListener('click', function (e) {
     var chip = e.target.closest('.chip-q');
-    if (!chip) return;
+    if (!chip || aiPending) return;
     var box = document.getElementById('ai-question');
     var form = document.getElementById('ai-form');
     if (!box || !form) return;

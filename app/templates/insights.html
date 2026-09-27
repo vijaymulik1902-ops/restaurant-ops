@@ -50,14 +50,14 @@
     {% for q in suggestions %}<button type="button" class="chip-q" data-question="{{ q }}">{{ q }}</button>{% endfor %}
   </div>
   <div id="chat-log" aria-live="polite"></div>
-  <form id="ai-form" hx-post="/insights/ask" hx-target="#chat-log" hx-swap="beforeend"
+  <form id="ai-form" hx-post="/insights/ask" hx-target="#chat-log" hx-swap="beforeend" hx-sync="this:drop"
         hx-indicator="#ai-loading" hx-disabled-elt="find button, find textarea" class="ai-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <textarea name="question" id="ai-question" rows="2" maxlength="{{ max_question }}" required
               placeholder="e.g. Which dishes should I promote?"></textarea>
     <button type="submit">Ask</button>
   </form>
-  <p id="ai-loading" class="ai-loading muted" aria-live="polite">Thinking… reading your figures</p>
+  <p id="ai-loading" class="ai-loading muted" aria-live="polite">Thinking...</p>
   {% else %}
   <div class="empty"><strong>AI chat isn't set up.</strong>Add GEMINI_API_KEY to .env and restart. The insight cards above still work.</div>
   {% endif %}

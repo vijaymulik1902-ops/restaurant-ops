@@ -12,11 +12,16 @@
   <p class="ai-q"><strong>You:</strong> {{ turn.question }}</p>
   {% if turn.error %}
   <p class="ai-error" role="alert">{{ turn.error }}</p>
+  {% elif turn.partial %}
+  <p class="ai-partial-note" role="status">{{ turn.note }}</p>
+  <ul class="ai-summary">{% for line in turn.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+  <p class="ai-model muted">Reason: {{ turn.reason }}</p>
   {% else %}
   <div class="ai-answer">{{ turn.answer }}</div>
+  <p class="ai-model muted">Answered by {{ turn.model }}</p>
   {% endif %}
   {% if turn.figures %}
-  <details class="ai-figures">
+  <details class="ai-figures"{% if turn.partial %} open{% endif %}>
     <summary>Figures used ({{ turn.figures|length|plural("function call") }})</summary>
     {% for f in turn.figures %}
     <section class="fig">
