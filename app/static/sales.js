@@ -8,11 +8,11 @@
   var data = dataEl ? JSON.parse(dataEl.textContent) : null;
 
   /* ---------- charts ---------- */
-  // Single series each, so no legend: the heading names the chart. Colour: categorical
-  // slot 1 (blue, dark step), validated against the app's dark surface.
-  var SERIES = '#3987e5';
-  var INK = '#c3c2b7';          // secondary text
-  var GRID = 'rgba(255,255,255,0.08)';
+  // Single series each, so no legend: the heading names the chart. Colour: brass (the app's
+  // primary accent), validated against the wine surface. Axis text in the muted rose-grey.
+  var SERIES = '#b8892a';       // brass, one step deeper: passes the chart lightness band + 3:1 on the wine surface
+  var INK = '#cdb8bd';          // secondary text
+  var GRID = 'rgba(243, 231, 211, 0.09)';
 
   function rupees(paise) {
     return '₹' + (paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 });

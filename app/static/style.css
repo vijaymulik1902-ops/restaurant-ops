@@ -1,15 +1,17 @@
 /* ==========================================================================
-   Design plan: an Indian restaurant floor and kitchen at dinner rush.
-   Dark ink-indigo room; colour only where it carries meaning (spice = state).
-   The kitchen ticket (thermal paper) is the one loud element; everything else is calm.
+   Design plan: "Brass and kokum", a warm, festive Indian dining room at dinner rush.
+   Deep wine room; colour only where it carries meaning. The kitchen ticket (warm paper)
+   is the one loud element; everything else is calm.
 
-   Colour (all text pairs checked against WCAG AA, lowest is 4.71:1):
-     --ink       #13152A  deep ink-indigo base, the room at night
-     --turmeric  #F2AB1E  attention: occupied, cooking, needs a look
-     --chilli    #F0544A  overdue, cancel, loss
-     --cardamom  #5BBE7A  available, ready, paid, go
-     --steel     #8C95AD  neutral: billing, borders, secondary
-     --paper     #EDEFF2  thermal paper (tickets, primary buttons); cool white, never cream
+   Colour (every text pair checked against WCAG AA; lowest is 4.94:1, kokum text on a late card):
+     --ink       #2B1418  deep wine base
+     --turmeric  #D4A33B  brass: occupied, cooking, primary accent
+     --chilli    #F07A95  kokum for TEXT on wine (raw kokum #C43B5C is only 3.4:1 there)
+     --kokum     #C43B5C  kokum for fills, borders, the overdue pulse
+     --cardamom  #7FB685  leaf green: available, ready, paid, go
+     --steel     #A8959A  muted rose-grey: neutral, billing, borders
+     --paper     #F3E7D3  warm paper: tickets, bills, primary buttons (text #2B1418)
+   Token names are unchanged from the previous theme, so templates didn't change.
    Type: display = a condensed grotesque the device already has (no downloads):
          Avenir Next Condensed (iOS/macOS), Roboto Condensed (Android), Bahnschrift (Windows).
          Body = system UI sans. Money and timers use tabular figures.
@@ -21,27 +23,37 @@
    ========================================================================== */
 
 :root {
-  --ink: #13152a;
-  --ink-2: #1b1e38;          /* surface */
-  --ink-3: #262a4c;          /* raised */
-  --line: #353b63;
-  --turmeric: #f2ab1e;
-  --chilli: #f0544a;
-  --cardamom: #5bbe7a;
-  --steel: #8c95ad;
-  --paper: #edeff2;
-  --paper-ink: #16182b;
-  --text: #eceef7;
-  --muted: #a7aec8;
+  --ink: #2b1418;
+  --ink-2: #3a1d22;          /* surface */
+  --ink-3: #4a262d;          /* raised */
+  --line: #6a3f47;
+  --turmeric: #d4a33b;       /* brass */
+  --chilli: #f07a95;         /* kokum, text-safe on wine */
+  --kokum: #c43b5c;          /* kokum, fills / borders / pulse */
+  --kokum-fill: #a32b49;     /* danger buttons (paper text 5.7:1) */
+  --cardamom: #7fb685;       /* leaf green */
+  --steel: #a8959a;          /* muted rose-grey */
+  --paper: #f3e7d3;
+  --paper-ink: #2b1418;
+  --text: #f7ece6;
+  --muted: #cdb8bd;
+  /* ink on paper (kitchen tickets, bills) */
+  --stamp: #a32b49;          /* stamped table number, late strip */
+  --ticket-brass: #7a5410;   /* cooking strip and label */
+  --ticket-leaf: #2f6b3a;    /* ready slip label */
+  --ticket-note: #fbe3a8;    /* highlighted note */
+  --ticket-muted: #6b4a50;   /* "Tap to start cooking" */
+  --ticket-rule: #cdb9a3;    /* dashed tear line */
+  --slip: #e2ecd6;           /* ready slip paper */
   /* status tints (rgba, not color-mix(), for older Android WebViews) */
-  --turmeric-12: rgba(242, 171, 30, .12);
-  --turmeric-50: rgba(242, 171, 30, .5);
-  --chilli-14: rgba(240, 84, 74, .14);
-  --chilli-55: rgba(240, 84, 74, .55);
-  --cardamom-12: rgba(91, 190, 122, .12);
-  --cardamom-50: rgba(91, 190, 122, .5);
-  --steel-14: rgba(140, 149, 173, .14);
-  --steel-50: rgba(140, 149, 173, .5);
+  --turmeric-12: rgba(212, 163, 59, .12);
+  --turmeric-50: rgba(212, 163, 59, .5);
+  --chilli-14: rgba(196, 59, 92, .16);
+  --chilli-55: rgba(196, 59, 92, .6);
+  --cardamom-12: rgba(127, 182, 133, .15);
+  --cardamom-50: rgba(127, 182, 133, .7);   /* stronger: green reads weakly on wine */
+  --steel-14: rgba(168, 149, 154, .14);
+  --steel-50: rgba(168, 149, 154, .5);
 
   --font-display: "Avenir Next Condensed", "Roboto Condensed", "sans-serif-condensed", "Bahnschrift",
                   "Arial Narrow", system-ui, sans-serif;
@@ -66,13 +78,13 @@ html[data-theme="dark"] {
   --pico-primary: var(--paper);
   --pico-primary-background: var(--paper);
   --pico-primary-border: var(--paper);
-  --pico-primary-hover: #ffffff;
-  --pico-primary-hover-background: #ffffff;
+  --pico-primary-hover: #fff6e6;
+  --pico-primary-hover-background: #fff6e6;
   --pico-primary-inverse: var(--ink);
   --pico-secondary-background: var(--ink-3);
   --pico-secondary-border: var(--line);
   --pico-secondary-inverse: var(--text);
-  --pico-secondary-hover-background: #2e3358;
+  --pico-secondary-hover-background: #56303a;
   --pico-border-radius: var(--r-control);
   --pico-font-family: var(--font-body);
   --pico-card-box-shadow: none;
@@ -102,12 +114,12 @@ button:active, [role="button"]:active { transform: scale(.97); }
 button, [role="button"] { transition: transform 120ms var(--ease-out); }
 :focus-visible { outline: 3px solid var(--turmeric) !important; outline-offset: 2px; box-shadow: none !important; }
 .big { width: 100%; font-size: 1.12rem; padding: .8rem 1rem; }
-button.danger, .danger { background: var(--chilli); border-color: var(--chilli); color: var(--paper-ink); }
+button.danger, .danger { background: var(--kokum-fill); border-color: var(--kokum); color: var(--paper); }
 button.go { background: var(--cardamom); border-color: var(--cardamom); color: var(--paper-ink); }
 
 /* ---------- top bar ---------- */
 /* display:block overrides Pico's flex <nav>: row 1 = brand + me, row 2 = links */
-.topbar { display: block; position: sticky; top: 0; z-index: 10; background: rgba(19, 21, 42, .96);
+.topbar { display: block; position: sticky; top: 0; z-index: 10; background: rgba(43, 20, 24, .96);
           border-bottom: 1px solid var(--line); padding: var(--s2) var(--s4) var(--s1); }
 .topbar-row { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
 .topbar .brand { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; text-decoration: none;
@@ -138,9 +150,9 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
           pointer-events: none; }
 .toast { padding: var(--s4); border-radius: var(--r-control); font-weight: 700; font-size: 1.1rem;
          background: var(--ink-3); border: 2px solid var(--steel); color: var(--text);
-         box-shadow: 0 10px 24px rgba(5, 6, 16, .6); animation: toast-drop 240ms var(--ease-out) both; }
+         box-shadow: 0 10px 24px rgba(20, 6, 9, .6); animation: toast-drop 240ms var(--ease-out) both; }
 .toast.error { border-color: var(--chilli); }
-.toast.ready { border-color: var(--cardamom); background: #173326; }
+.toast.ready { border-color: var(--cardamom); background: #25382a; }
 
 /* ---------- badges (pills, sentence case) ---------- */
 .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .8rem; font-weight: 700;
@@ -168,18 +180,19 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
 .tcard.st-available .tstatus { color: var(--cardamom); }
 .tcard.st-occupied { border-color: var(--turmeric-50); background: var(--turmeric-12); }
 .tcard.st-occupied .tstatus, .tcard.st-occupied .timer { color: var(--turmeric); }
+.tcard.st-occupied .tnum { color: var(--turmeric); }
 .tcard.st-billing { border-color: var(--steel-50); background: var(--steel-14); }
 .tcard.late { border-color: var(--chilli); background: var(--chilli-14); }
 .tcard.late .tstatus, .tcard.late .timer { color: var(--chilli); }
 /* overdue: a slow, subtle red breath on an overlay (opacity only) */
-.tcard.late::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--chilli);
+.tcard.late::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--kokum);
                       opacity: 0; animation: overdue-pulse 2.6s ease-in-out infinite; }
 /* status change: the old colour fades out over the new card (crossfade, opacity only) */
 .tcard[data-from]::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0;
                            animation: status-crossfade 300ms ease-out; }
-.tcard[data-from="available"]::after { background: #1f3b2c; }
-.tcard[data-from="occupied"]::after { background: #3d3217; }
-.tcard[data-from="billing"]::after { background: #2b3045; }
+.tcard[data-from="available"]::after { background: #33402f; }
+.tcard[data-from="occupied"]::after { background: #4d3a1e; }
+.tcard[data-from="billing"]::after { background: #463239; }
 #board[data-filter="available"] .tcard:not([data-status="available"]),
 #board[data-filter="occupied"] .tcard:not([data-status="occupied"]),
 #board[data-filter="billing"] .tcard:not([data-status="billing"]) { display: none; }
@@ -219,7 +232,7 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
 /* thumb-reach primary action: always at the bottom of the screen */
 .sticky-send { position: sticky; bottom: 0; z-index: 5; margin: 0 calc(-1 * var(--s4));
                padding: var(--s2) var(--s4) calc(var(--s2) + env(safe-area-inset-bottom));
-               background: rgba(19, 21, 42, .97); border-top: 1px solid var(--line); }
+               background: rgba(43, 20, 24, .97); border-top: 1px solid var(--line); }
 .sticky-send .big { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
 .sticky-send .send-summary { font-variant-numeric: tabular-nums; font-weight: 600; opacity: .8; }
 .sticky-send .big.sent { background: var(--cardamom); border-color: var(--cardamom); color: var(--paper-ink); }
@@ -249,7 +262,7 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
 .kbtn { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: var(--s1);
         width: 100%; margin: 0; padding: var(--s4) var(--s4) var(--s3); min-height: 8rem;
         background: var(--paper); color: var(--paper-ink); border: none; border-radius: 0 0 var(--r-ticket) var(--r-ticket);
-        font-size: 1.1rem; font-weight: 500; box-shadow: 0 3px 0 rgba(5, 6, 16, .55); }
+        font-size: 1.1rem; font-weight: 500; box-shadow: 0 3px 0 rgba(20, 6, 9, .55); }
 /* perforated top edge, torn off the printer */
 .kbtn::before { content: ""; position: absolute; left: 0; right: 0; top: -7px; height: 8px;
                 background: radial-gradient(circle at 5px 0, transparent 4.5px, var(--paper) 5px) repeat-x;
@@ -257,24 +270,24 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
 .kbtn:hover, .kbtn:focus { background: var(--paper); color: var(--paper-ink); }
 .ktop { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); }
 /* table number stamped on, slightly askew */
-.ktable { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; line-height: 1; color: #c2332b;
-          border: 3px solid #c2332b; border-radius: 6px; padding: 2px 8px 0; transform: rotate(-3deg); }
+.ktable { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; line-height: 1; color: var(--stamp);
+          border: 3px solid var(--stamp); border-radius: 6px; padding: 2px 8px 0; transform: rotate(-3deg); }
 .kcard .timer { color: var(--paper-ink); font-size: 1rem; }
 .kname { font-size: 1.45rem; line-height: 1.2; font-weight: 700; }
 .kname strong { font-family: var(--font-display); font-size: 1.6rem; }
-.knote { background: #fff3cf; color: var(--paper-ink); padding: 2px var(--s2); border-radius: 4px; font-weight: 700;
-         border-left: 4px solid #8a5a00; }
-.kaction { font-size: .92rem; font-weight: 700; color: #4a4f6b; border-top: 1px dashed #b9bdc9; padding-top: var(--s2);
+.knote { background: var(--ticket-note); color: var(--paper-ink); padding: 2px var(--s2); border-radius: 4px; font-weight: 700;
+         border-left: 4px solid var(--ticket-brass); }
+.kaction { font-size: .92rem; font-weight: 700; color: var(--ticket-muted); border-top: 1px dashed var(--ticket-rule); padding-top: var(--s2);
            margin-top: var(--s1); }
-.kcard.st-preparing .kbtn { box-shadow: inset 6px 0 0 #8a5a00, 0 3px 0 rgba(5, 6, 16, .55); }
-.kcard.st-preparing .kaction { color: #8a5a00; }
-.kcard.late .kbtn { box-shadow: inset 6px 0 0 #c2332b, 0 3px 0 rgba(5, 6, 16, .55); }
-.kcard.late .timer { color: #c2332b; font-weight: 800; }
+.kcard.st-preparing .kbtn { box-shadow: inset 6px 0 0 var(--ticket-brass), 0 3px 0 rgba(20, 6, 9, .55); }
+.kcard.st-preparing .kaction { color: var(--ticket-brass); }
+.kcard.late .kbtn { box-shadow: inset 6px 0 0 var(--stamp), 0 3px 0 rgba(20, 6, 9, .55); }
+.kcard.late .timer { color: var(--stamp); font-weight: 800; }
 /* ready: the ticket has left the rail; a slim pickup slip remains */
-.kcard.st-ready .kbtn { min-height: 0; padding: var(--s3) var(--s4); background: #dff1e5; }
-.kcard.st-ready .kbtn::before { background-image: radial-gradient(circle at 5px 0, transparent 4.5px, #dff1e5 5px); }
+.kcard.st-ready .kbtn { min-height: 0; padding: var(--s3) var(--s4); background: var(--slip); }
+.kcard.st-ready .kbtn::before { background-image: radial-gradient(circle at 5px 0, transparent 4.5px, var(--slip) 5px); }
 .kcard.st-ready .kname { font-size: 1.1rem; }
-.kcard.st-ready .kaction { color: #1f6b3a; border-top: none; padding-top: 0; margin: 0; }
+.kcard.st-ready .kaction { color: var(--ticket-leaf); border-top: none; padding-top: 0; margin: 0; }
 .kcard.st-ready .ktable { font-size: 1.3rem; border-width: 2px; }
 .tabs { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .tabs a { padding: var(--s2) var(--s3); border-radius: var(--r-control); background: var(--ink-3); text-decoration: none;
@@ -297,7 +310,7 @@ button.go { background: var(--cardamom); border-color: var(--cardamom); color: v
 .pay-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--s2); margin: var(--s3) 0; }
 .pay-grid button { margin: 0; }
 .bill-lines .grand td { font-weight: 800; font-size: 1.2rem; }
-.bill-form { position: sticky; bottom: 0; z-index: 5; background: rgba(19, 21, 42, .97); padding: var(--s2) 0; }
+.bill-form { position: sticky; bottom: 0; z-index: 5; background: rgba(43, 20, 24, .97); padding: var(--s2) 0; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--s2); }
 .stats article { margin: 0; padding: var(--s3) var(--s4); background: var(--ink-2); border: 1px solid var(--line);
                  border-radius: var(--r-control); }
