@@ -13,6 +13,11 @@ MAX_EXPENSE_PAISE = 10**10  # ₹10 crore: anything bigger is a typo
 MAX_NOTE_LEN = 160
 
 
+def latest_allowed_date() -> date:
+    """Expenses can be dated up to today (calendar date), never in the future."""
+    return now().date()
+
+
 def _require_manager(s: Session, staff_id: int) -> None:
     if get_active_staff(s, staff_id).role != "manager":
         raise ServiceError("Only a manager can manage expenses")
@@ -28,7 +33,7 @@ def add_expense(spent_on: date, category: str, amount_paise: int, note: str | No
     """Record money spent. Returns the new expense."""
     if not isinstance(spent_on, date):
         raise ServiceError("Pick the date the money was spent")
-    if spent_on > now().date():
+    if spent_on > latest_allowed_date():
         raise ServiceError("An expense can't be dated in the future")
     if spent_on.year < 2000:
         raise ServiceError("Pick a date after 2000")

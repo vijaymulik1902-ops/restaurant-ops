@@ -25,7 +25,7 @@ def kitchen_page(request: Request, station: str | None = None,
                  staff: CurrentStaff = Depends(kitchen_staff)):
     st = _station(staff, station)
     return render(request, "kitchen.html", staff, station=st, stations=STATIONS,
-                  items=kitchen.live_items(st), stream_url="/stream")
+                  **kitchen.kitchen_screen(st), stream_url="/stream")
 
 
 @router.get("/kitchen/board")
@@ -33,6 +33,14 @@ def kitchen_board(request: Request, station: str | None = None,
                   staff: CurrentStaff = Depends(kitchen_staff)):
     st = _station(staff, station)
     return partial(request, "_kitchen_cards.html", items=kitchen.live_items(st), station=st)
+
+
+@router.get("/kitchen/summary")
+def cooking_summary(request: Request, station: str | None = None,
+                    staff: CurrentStaff = Depends(kitchen_staff)):
+    """The read-only "Cooking summary" panel, refreshed live on its own."""
+    st = _station(staff, station)
+    return partial(request, "_cooking_summary.html", lines=kitchen.cooking_summary(st), station=st)
 
 
 @router.get("/kitchen/items/{item_id}/card")

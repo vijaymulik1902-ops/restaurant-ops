@@ -4,6 +4,7 @@ import json
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
+from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -64,4 +65,9 @@ async def stream(request: Request, all: bool = False):
         finally:
             events.unsubscribe(queue)
 
-    return EventSourceResponse(gen(), ping=PING_SECONDS)
+    # The heartbeat is a real named "ping" event (not an invisible ":" comment), so the page
+    # can tell a live stream from one a proxy is buffering (e.g. Cloudflare quick tunnels hold
+    # the whole response) and fall back to polling. Exactly "text/event-stream" (Starlette would
+    # append "; charset=utf-8"; SSE is UTF-8 by definition) so proxies recognise the stream.
+    return EventSourceResponse(gen(), ping=PING_SECONDS, headers={"Content-Type": "text/event-stream"},
+                               ping_message_factory=lambda: ServerSentEvent(data="", event="ping"))

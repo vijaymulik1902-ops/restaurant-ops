@@ -8,34 +8,39 @@
 <p class="muted">PINs are stored only as secure hashes and never shown or logged. Managers use 6 digits, everyone else 4.
   Deactivated staff are logged out on their next tap and can't log in.</p>
 
-<div class="dish-admin-list">
+<div class="staff-list">
   {% for p in people %}
-  <article id="staff-{{ p.staff_id }}" class="dish-admin{% if not p.active %} archived{% endif %}">
-    <header>
-      <strong>{{ p.name }}</strong>
-      <small class="muted">{{ p.role }}{% if p.section %} · section {{ p.section }}{% endif %}{% if p.station %} · {{ p.station }}{% endif %}</small>
+  <article id="staff-{{ p.staff_id }}" class="staff-card{% if not p.active %} inactive{% endif %}">
+    <div class="staff-head">
+      <h3>{{ p.name }}</h3>
+      <span class="muted">{{ p.role|capitalize }}{% if p.section %} · section {{ p.section }}{% endif %}{% if p.station %} · {{ p.station }}{% endif %}</span>
       {% if not p.active %}<span class="badge">inactive</span>{% endif %}
       {% if p.staff_id == staff.id %}<span class="badge">you</span>{% endif %}
-    </header>
-    <div class="edit-row">
-      <form method="post" action="/staff/{{ p.staff_id }}/pin" data-once autocomplete="off">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    </div>
+    <form method="post" action="/staff/{{ p.staff_id }}/pin" class="pin-form" data-once autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="pin-fields">
         <label>New PIN ({{ p.pin_length }} digits)
           <input type="password" name="new_pin" inputmode="numeric" pattern="[0-9]{{ '{' }}{{ p.pin_length }}{{ '}' }}"
                  maxlength="{{ p.pin_length }}" autocomplete="new-password" required></label>
         <label>Repeat it
           <input type="password" name="confirm_pin" inputmode="numeric" maxlength="{{ p.pin_length }}"
                  autocomplete="new-password" required></label>
-        <button type="submit" class="secondary">Change PIN</button>
-      </form>
-      {% if p.staff_id != staff.id %}
-      <form method="post" action="/staff/{{ p.staff_id }}/active" data-once>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="active" value="{{ '0' if p.active else '1' }}">
-        <button type="submit" class="{{ 'danger' if p.active else '' }}">{{ 'Deactivate' if p.active else 'Reactivate' }}</button>
-      </form>
+      </div>
+      <button type="submit" class="secondary">Change PIN</button>
+    </form>
+    {% if p.staff_id != staff.id %}
+    <form method="post" action="/staff/{{ p.staff_id }}/active" class="staff-status" data-once
+          {% if p.active %}data-confirm="Deactivate {{ p.name }}? They are logged out on their next tap and can't log in."{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="active" value="{{ '0' if p.active else '1' }}">
+      {% if p.active %}
+      <button type="submit" class="outline-danger small">Deactivate</button>
+      {% else %}
+      <button type="submit" class="go small">Reactivate</button>
       {% endif %}
-    </div>
+    </form>
+    {% endif %}
   </article>
   {% endfor %}
 </div>

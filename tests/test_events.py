@@ -93,3 +93,42 @@ def test_channels_by_role():
     assert channels_for(counter, sections) == ["counter", "section:A", "section:B"]
     manager = CurrentStaff(4, "Manager", "manager", None, None)
     assert set(channels_for(manager, sections)) >= {"counter", "section:A", "station:bar"}
+
+
+def test_stream_heartbeat_is_a_named_ping_event(db, monkeypatch):
+    """A visible "ping" event (not a ':' comment) lets the page detect a proxy that buffers
+    the stream and fall back to polling. (The test client returns a streamed body only once
+    it ends, so the stream is ended by deactivating the waiter.)"""
+    import threading
+    import time
+
+    from app.db import write_session
+    from app.models import Staff
+    from app.routers import stream as stream_mod
+    from test_routes import login
+
+    monkeypatch.setattr(stream_mod, "PING_SECONDS", 0.1)
+    monkeypatch.setattr(stream_mod, "RECHECK_SECONDS", 0.3)
+    c = login("waiter")
+    result = {}
+
+    def read():
+        with c.stream("GET", "/stream") as resp:
+            result["type"] = resp.headers["content-type"]
+            result["lines"] = list(resp.iter_lines())
+
+    t = threading.Thread(target=read, daemon=True)
+    t.start()
+    time.sleep(0.5)
+    with write_session() as s:
+        s.get(Staff, db["staff"]["waiter"]).active = False
+    t.join(5)
+    assert result["type"] == "text/event-stream"
+    assert "event: ping" in result["lines"]
+
+
+def test_page_falls_back_to_polling_when_stream_is_silent():
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parent.parent / "app" / "static" / "app.js").read_text()
+    assert "addEventListener('ping'" in js and "startPolling" in js and "SILENT_LIMIT_MS = 40000" in js

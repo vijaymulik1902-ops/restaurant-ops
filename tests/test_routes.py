@@ -75,7 +75,7 @@ SCREENS = {
     "/floor": {"waiter", "counter", "manager"},
     "/kitchen": {"chef", "manager"},
     "/counter": {"counter", "manager"},
-    "/reports/day-close": {"counter", "manager"},
+    "/reports/day-close": {"manager"},
     "/orders/{order_id}": {"waiter", "counter", "manager"},
     "/counter/orders/{order_id}": {"counter", "manager"},
     "/counter/bills/{bill_id}": {"counter", "manager"},
@@ -269,7 +269,8 @@ def test_full_service_flow_through_screens(db):
     assert "UPI" in printed
 
     assert tables.get_table(table_id)["status"] == "available"
-    report = counter.get("/reports/day-close").text
+    assert counter.get("/reports/day-close").status_code == 403  # day close is manager-only
+    report = login("manager").get("/reports/day-close").text
     assert "₹85.05" in report
 
     # Cost never reaches any non-manager screen

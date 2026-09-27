@@ -39,9 +39,14 @@ def _div(total: int, count: int) -> int:
     return (2 * total + count) // (2 * count) if count else 0
 
 
+def current_business_day() -> date:
+    """Today's business day (04:00-04:00), from the services' clock."""
+    return business_day_of(now())
+
+
 def preset_range(name: str, today: date | None = None) -> tuple[date, date]:
     """Date range for a preset, in business days. Weeks start on Monday."""
-    today = today or business_day_of(now())
+    today = today or current_business_day()
     if name == "today":
         return today, today
     if name == "yesterday":

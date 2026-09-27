@@ -4,7 +4,7 @@
 {% block content %}
 <div class="bar">
   <h2>All tables</h2>
-  <a href="/reports/day-close" role="button" class="secondary">Day close</a>
+  {% if staff.role == 'manager' %}<a href="/reports/day-close" role="button" class="secondary">Day close</a>{% endif %}
 </div>
 <div class="filters" role="group" aria-label="Filter tables">
   {% for f in ['all', 'available', 'occupied', 'billing'] %}

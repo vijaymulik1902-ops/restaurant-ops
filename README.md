@@ -34,8 +34,8 @@ profit on one page.
 | Waiter (phone) | Floor | Tables in their section, colour by state, live timers; red when a table waits too long for its order or its food |
 | | Order | Menu with search and +/- steppers, notes, "Send to kitchen", "Mark served" when ready (phone buzzes), cancel with a reason |
 | Chef (tablet) | Kitchen | Tickets for their station, oldest first: tap to start, tap when ready. Red after 20 min. Turn dishes off when they run out |
-| Counter (laptop) | Counter | Every table live; bill preview, discount, GST bill, payment (cash / UPI / card), printable 80 mm bill, day close |
-| Manager | Everything above, plus | Sales and profit report with charts and CSV, expenses, menu (price, cost, margin, rename, archive), staff PINs, audit log, database backup download |
+| Counter (laptop) | Counter | Every table live; bill preview, discount, GST bill, payment (cash / UPI / card), printable 80 mm bill |
+| Manager | Everything above, plus | Day close, sales and profit report with charts and CSV, expenses, menu (price, cost, margin, rename, archive), staff PINs, audit log, database backup download |
 
 ## Architecture
 
@@ -101,7 +101,7 @@ only by hiding buttons. Tests request every screen and action as every role and 
 | Cancel preparing/ready item | no | no | no | yes |
 | Cancel order with no KOTs | own order | no | yes | yes |
 | Cancel order with KOTs | no | no | no | yes |
-| Day close | no | no | yes | yes |
+| Day close | no | no | no | yes |
 | See menu prices | yes | no | yes | yes |
 | Menu prices/costs, margins, sales report, expenses, staff, audit, backups | no | no | no | yes |
 
@@ -179,7 +179,7 @@ Open it on a phone as **Rahul / 1111** (waiter), on a tablet or second browser a
    works. Take payment by UPI; table 1 turns green on the phone at once.
 5. **Waiter can't see cost (15 s).** On the phone, open `/menu` or `/reports/sales`: "Not
    allowed". The order screen shows prices only, never cost or margin.
-6. **Day close (20 s).** On the counter, open Day close for yesterday: **Mismatches (0)**, cash /
+6. **Day close (20 s).** In the manager tab, open Day close for yesterday: **Mismatches (0)**, cash /
    UPI / card totals, cancelled items with reasons.
 7. **Audit log (20 s).** On the phone, seat table 2, send a lassi, and cancel it with the ✕ and
    "Customer changed mind". In the manager tab, **Audit** shows the `item cancel` row with who,

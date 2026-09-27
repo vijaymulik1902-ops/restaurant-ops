@@ -432,3 +432,58 @@ table.sortable tr.low td:first-child { color: var(--turmeric); }
   button:active, [role="button"]:active { transform: none; }
   .kcard.htmx-swapping { transform: none; opacity: 1; }
 }
+/* stream held back by the network: a calm note, not the turmeric "Reconnecting" alarm */
+.live-status.polling { background: var(--ink-3); color: var(--muted); font-weight: 500; }
+
+/* ---------- kitchen: cooking summary (read-only, calm; the tickets stay the loud element) ---------- */
+.cook-summary { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-control);
+                padding: var(--s2) var(--s3); margin-bottom: var(--s4); }
+.cook-summary h3 { font-size: 1.05rem; margin: 0 0 var(--s1); color: var(--muted); }
+.cook-lines { list-style: none; padding: 0; margin: 0; }
+.cook-line { list-style: none; display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s2) 0;
+             border-top: 1px solid var(--line); }
+.cook-line:first-child { border-top: none; }
+.cook-qty { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; line-height: 1; min-width: 2.2ch;
+            text-align: right; font-variant-numeric: tabular-nums; }
+.cook-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cook-name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.cook-note { background: var(--turmeric-12); color: var(--turmeric); border-radius: 4px; padding: 0 var(--s1);
+             font-weight: 700; }
+.cook-tables { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.tchip { font-size: .8rem; font-weight: 700; padding: 1px var(--s2); border-radius: 999px; background: var(--ink-3);
+         font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cook-split { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cook-line.late .cook-qty, .cook-line.late .cook-name { color: var(--chilli); }
+.cook-more summary { color: var(--muted); padding: var(--s1) 0; }
+.cook-empty { margin: var(--s1) 0; }
+
+/* Pico pulls "article > header" out to the card edge (negative margins); keep ours inside */
+.dish-admin > header { margin: 0 0 var(--s2); }
+
+/* ---------- staff ---------- */
+.staff-list { display: grid; gap: var(--s3); }
+.staff-card { margin: 0; padding: var(--s3) var(--s4); background: var(--ink-2); border: 1px solid var(--line);
+              border-radius: var(--r-control); }
+.staff-card.inactive { opacity: .75; border-style: dashed; }
+.staff-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); margin-bottom: var(--s2); }
+.staff-head h3 { margin: 0; font-size: 1.3rem; }
+.pin-form { margin: 0; }
+.pin-fields { display: grid; grid-template-columns: 1fr; gap: 0 var(--s3); }
+@media (min-width: 640px) { .pin-fields { grid-template-columns: 1fr 1fr; } }
+.pin-fields label { margin: 0 0 var(--s2); }
+.pin-fields input { margin-bottom: 0; }
+.staff-card button { width: auto; margin: 0; }
+.staff-status { margin: var(--s3) 0 0; padding-top: var(--s3); border-top: 1px solid var(--line); }
+button.small { min-height: 2.75rem; padding: .4rem .9rem; font-size: .92rem; }
+button.outline-danger { background: transparent; color: var(--chilli); border: 1px solid var(--chilli-55); }
+
+/* menu cards: each save button sits beside its own field (never a full-width slab) */
+.dish-admin .edit-row form { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s2);
+                             align-items: end; }
+.dish-admin .edit-row form > label, .dish-admin .edit-row form > p { grid-column: 1; margin: 0; }
+.dish-admin .edit-row form input:not([type="hidden"]) { margin-bottom: 0; }
+.dish-admin .edit-row button { width: auto; grid-column: 2; white-space: nowrap; }
+.dish-admin .edit-row form:has(> button:only-of-type):not(:has(label)):not(:has(p)) { display: flex; }
+.dish-admin .toggle-on, .dish-admin .toggle-off { width: auto; min-width: 8.5rem; }
+/* bill: the three payment modes always share one row */
+form.pay-grid { grid-template-columns: repeat(3, 1fr); }

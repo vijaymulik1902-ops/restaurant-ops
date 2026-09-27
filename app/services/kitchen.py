@@ -190,3 +190,45 @@ def live_items(station: str, item_id: int | None = None) -> list[dict]:
         }
         for r in rows
     ]
+
+
+def cooking_summary(station: str) -> list[dict]:
+    """What the station has to cook, grouped by (dish name, note), oldest first.
+
+    Read-only aggregate of pending + preparing items (ready/served/cancelled are excluded).
+    Items with different notes are never merged. One query, whatever the number of tables.
+    """
+    if station not in STATIONS:
+        raise ServiceError("Unknown station")
+    stmt = (
+        select(OrderItem.name, OrderItem.note, OrderItem.qty, OrderItem.status, OrderItem.created_at,
+               DiningTable.number.label("table_number"))
+        .join(Order, Order.id == OrderItem.order_id)
+        .join(DiningTable, DiningTable.id == Order.table_id)
+        .where(OrderItem.station == station, OrderItem.status.in_(("pending", "preparing")))
+        .order_by(OrderItem.created_at, OrderItem.id)
+    )
+    current = now()
+    with read_session() as s:
+        rows = s.execute(stmt).all()
+
+    lines: dict[tuple[str, str], dict] = {}
+    for r in rows:  # oldest first, so the first row seen for a line is its oldest item
+        key = (r.name, r.note or "")
+        line = lines.get(key)
+        if line is None:
+            line = lines[key] = {"name": r.name, "note": r.note, "total_qty": 0, "to_start": 0, "cooking": 0,
+                                 "tables": {}, "oldest_age_seconds": max(0, int((current - r.created_at).total_seconds()))}
+        line["total_qty"] += r.qty
+        line["to_start" if r.status == "pending" else "cooking"] += r.qty
+        line["tables"][r.table_number] = line["tables"].get(r.table_number, 0) + r.qty
+    result = []
+    for line in lines.values():  # dict keeps first-seen (oldest-first) order
+        line["tables"] = [{"number": n, "qty": q} for n, q in line["tables"].items()]
+        result.append(line)
+    return result
+
+
+def kitchen_screen(station: str) -> dict:
+    """Everything /kitchen renders: the tickets and the cooking summary above them. Read-only."""
+    return {"items": live_items(station), "lines": cooking_summary(station)}

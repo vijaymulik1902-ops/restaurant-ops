@@ -1,0 +1,32 @@
+{#- Read-only "what to cook" panel: pending + preparing items grouped by (dish, note).
+    All Start/Ready actions stay on the tickets below. -#}
+{% macro line(l) -%}
+<li class="cook-line{% if l.oldest_age_seconds >= WARN_KITCHEN_SEC %} late{% endif %}"
+    data-late-in="{{ WARN_KITCHEN_SEC - l.oldest_age_seconds }}">
+  <span class="cook-qty">{{ l.total_qty }}</span>
+  <span class="cook-main">
+    <span class="cook-name">{{ l.name }}{% if l.note %} <mark class="cook-note">{{ l.note }}</mark>{% endif %}</span>
+    <span class="cook-tables">{% for t in l.tables %}<span class="tchip">T{{ t.number }} ×{{ t.qty }}</span>{% endfor %}</span>
+    <span class="cook-split">{{ l.to_start }} to start · {{ l.cooking }} cooking</span>
+  </span>
+</li>
+{%- endmacro %}
+<section id="cook-summary" class="cook-summary" data-card-url="/kitchen/summary?station={{ station }}"
+         aria-label="Cooking summary">
+  <h3>Cooking summary</h3>
+  {% if lines %}
+  <ul class="cook-lines">
+    {% for l in lines[:5] %}{{ line(l) }}{% endfor %}
+  </ul>
+  {% if lines|length > 5 %}
+  <details class="cook-more">
+    <summary>Show all ({{ lines|length|plural("dish", "dishes") }})</summary>
+    <ul class="cook-lines">
+      {% for l in lines[5:] %}{{ line(l) }}{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}
+  <p class="muted cook-empty">Nothing to cook right now.</p>
+  {% endif %}
+</section>

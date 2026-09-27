@@ -159,7 +159,7 @@ def test_non_manager_pages_never_show_cost_or_margin_after_edits(db):
         "waiter": ["/floor", f"/orders/{o}", f"/orders/{o}/items", "/floor/board?all=1"],
         "chef": ["/kitchen", "/kitchen/board", "/kitchen/availability"],
         "counter": ["/counter", f"/counter/orders/{o}", f"/counter/bills/{bill['bill_id']}",
-                    f"/counter/bills/{bill['bill_id']}/print", "/reports/day-close"],
+                    f"/counter/bills/{bill['bill_id']}/print"],
     }
     for role, urls in pages.items():
         c = login(role)

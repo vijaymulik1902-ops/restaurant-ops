@@ -12,6 +12,9 @@
   </nav>
   {% endif %}
 </div>
+<div class="cook-summary-wrap" data-list-url="/kitchen/summary?station={{ station }}">
+  {% include "_cooking_summary.html" %}
+</div>
 <div id="board" class="kboard" data-station="{{ station }}"
      data-list-url="/kitchen/board?station={{ station }}">
   {% include "_kitchen_cards.html" %}

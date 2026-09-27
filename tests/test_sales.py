@@ -262,7 +262,7 @@ def test_expenses_page_add_list_delete(db, clock):
 
 def test_average_labels_are_unambiguous_with_tooltips(db, clock):
     _paid(db, [("dal", 1)])
-    counter_page = login("counter").get("/reports/day-close?day=2026-09-25").text
+    counter_page = login("manager").get("/reports/day-close?day=2026-09-25").text
     assert "Average bill (incl. GST)" in counter_page and 'class="tip"' in counter_page
     page = login("manager").get("/reports/sales?preset=today").text
     for label in ("Average bill (net sales, excl. GST)", "Average net sales per calendar day",

@@ -57,7 +57,7 @@ Priority order: correctness > reliability > speed > looks. Keep it simple, no ne
 | Cancel preparing/ready item                  |  no    |  no  |   no    |   yes   |
 | Cancel order with no KOTs                    | own order | no  |   yes   |   yes   |
 | Cancel order with KOTs                       |  no    |  no  |   no    |   yes   |
-| Day close (cash/UPI/card totals, mismatches) |  no    |  no  |   yes   |   yes   |
+| Day close (cash/UPI/card totals, mismatches) |  no    |  no  |   no    |   yes   |
 | Menu prices: view                            |  yes   |  no  |   yes   |   yes   |
 | Menu prices / costs: edit, add dishes        |  no    |  no  |   no    |   yes   |
 | Item cost, cost of goods, profit, margins    |  no    |  no  |   no    |   yes   |

@@ -46,7 +46,7 @@ def _busy_floor(db, table_count: int) -> int:
 
 PAGES = [
     ("waiter", "/floor"), ("waiter", "/floor?all=1"), ("waiter", "/floor/board?all=1"),
-    ("counter", "/counter"), ("chef", "/kitchen"), ("chef", "/kitchen/board"),
+    ("counter", "/counter"), ("chef", "/kitchen"), ("chef", "/kitchen/board"), ("chef", "/kitchen/summary"),
     ("manager", "/reports/day-close"), ("waiter", "/orders/{order_id}"),
 ]
 

@@ -217,7 +217,7 @@ def test_back_url_never_leaves_the_site(referer, expected):
 
 
 def test_day_close_absurd_date_is_friendly(db):
-    c = login("counter")
+    c = login("manager")
     resp = c.get("/reports/day-close?day=9999-12-31")
     assert resp.status_code == 303
     assert "Pick a date between" in c.get(resp.headers["location"], follow_redirects=True).text

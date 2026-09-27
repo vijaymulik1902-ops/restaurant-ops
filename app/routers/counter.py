@@ -10,6 +10,7 @@ from app.web import COUNTER_ROLES, Id, OptionalDate, parse_rupees, publish, rend
 
 router = APIRouter()
 counter_staff = require_role(*COUNTER_ROLES)
+manager_only = require_role("manager")
 
 
 @router.get("/counter")
@@ -58,5 +59,6 @@ def bill_print(request: Request, bill_id: Id, staff: CurrentStaff = Depends(coun
 
 
 @router.get("/reports/day-close")
-def day_close(request: Request, day: OptionalDate = None, staff: CurrentStaff = Depends(counter_staff)):
+def day_close(request: Request, day: OptionalDate = None, staff: CurrentStaff = Depends(manager_only)):
+    """Day close is manager-only (cash/UPI/card totals and mismatches)."""
     return render(request, "day_close.html", staff, report=reports.day_close(day))

@@ -9,9 +9,8 @@ from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 
 from app.auth import CurrentStaff, require_role
-from app.db import now
 from app.models import EXPENSE_CATEGORIES, STATIONS
-from app.services import ServiceError, audit, backups, business_day_of, expenses, menu, menu_admin, sales, staff_admin
+from app.services import ServiceError, audit, backups, expenses, menu, menu_admin, sales, staff_admin
 from app.web import Id, OptionalDate, OptionalId, flash, parse_rupees, publish, render, see_other
 
 router = APIRouter()
@@ -106,7 +105,7 @@ def expenses_page(request: Request, start: OptionalDate = None, end: OptionalDat
         start, end = sales.preset_range("this_month")
     result = expenses.list_expenses(start or end, end or start)
     return render(request, "expenses.html", staff, **result, categories=EXPENSE_CATEGORIES,
-                  today=now().date())
+                  today=expenses.latest_allowed_date())
 
 
 def _parse_date(text: str) -> date:
@@ -139,7 +138,7 @@ def sales_page(request: Request, preset: str | None = None, start: OptionalDate 
                end: OptionalDate = None, staff: CurrentStaff = Depends(manager_only)):
     start, end, preset = sales.resolve_range(preset, start, end)
     return render(request, "sales.html", staff, report=sales.sales_summary(start, end), preset=preset,
-                  presets=sales.PRESETS, today=business_day_of(now()))
+                  presets=sales.PRESETS, today=sales.current_business_day())
 
 
 @router.get("/reports/sales.csv")

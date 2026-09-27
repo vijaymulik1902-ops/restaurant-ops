@@ -153,6 +153,21 @@
       toast(d.name + ' just became unavailable', 'error');
     }
   }
+  // The read-only cooking summary above the tickets: re-fetched on any event for this station
+  var summaryWasOpen = false;
+  function refreshSummary() {
+    var el = document.getElementById('cook-summary');
+    if (!el) return;
+    summaryWasOpen = !!el.querySelector('details.cook-more[open]');
+    refreshCard(el);
+  }
+  htmx.onLoad(function (el) {
+    if (el.id === 'cook-summary' && summaryWasOpen) {
+      var more = el.querySelector('details.cook-more');
+      if (more) more.open = true;
+    }
+  });
+
   function kitchenBoard(channel) {
     var board = document.querySelector('.kboard');
     if (!board || channel !== 'station:' + board.dataset.station) return null;
@@ -165,7 +180,10 @@
       refreshOrder(d.order_id);
     },
     item: function (d) {
-      if (kitchenBoard(d.channel)) refreshCard(document.getElementById('item-' + d.item_id));
+      if (kitchenBoard(d.channel)) {
+        refreshCard(document.getElementById('item-' + d.item_id));
+        refreshSummary();
+      }
       refreshOrder(d.order_id);
     },
     item_ready: function (d) {
@@ -184,6 +202,7 @@
           board.appendChild(slot); // newest last: board stays oldest-first
           refreshCard(slot);
         });
+        refreshSummary();
       }
       refreshOrder(d.order_id);
     },
@@ -198,12 +217,19 @@
   var retryMs = 1000;
   var streamStopped = false;
   var reconnectTimer = null;
+  // Some networks (e.g. Cloudflare quick tunnels, some corporate proxies) hold a streamed
+  // response until it ends, so events never arrive. The server pings every 15 s; if we hear
+  // nothing for 40 s, reload the lists every 10 s instead.
+  var SILENT_LIMIT_MS = 40000, POLL_MS = 10000;
+  var lastHeard = Date.now(), pollTimer = null;
   var statusEl = document.getElementById('live-status');
 
   function connect() {
     clearTimeout(reconnectTimer); // never two streams (wake-up + pending retry)
     if (es && es.readyState !== 2) es.close();
     es = new EventSource(streamUrl);
+    lastHeard = Date.now();
+    es.addEventListener('ping', function () { lastHeard = Date.now(); });
     es.onopen = function () {
       retryMs = 1000;
       if (statusEl) statusEl.hidden = true;
@@ -212,6 +238,7 @@
     };
     Object.keys(handlers).forEach(function (type) {
       es.addEventListener(type, function (ev) {
+        lastHeard = Date.now();
         var data;
         try { data = JSON.parse(ev.data); } catch (e) { return; }
         handlers[type](data);
@@ -238,14 +265,34 @@
   }
   function stopStream() {
     streamStopped = true;
+    clearInterval(pollTimer);
     clearTimeout(reconnectTimer);
     if (es) es.close();
   }
-  if (streamUrl && window.EventSource) connect();
+  function startPolling() {
+    if (pollTimer || streamStopped) return;
+    if (es) es.close();
+    clearTimeout(reconnectTimer);
+    if (statusEl) {
+      statusEl.textContent = 'Live updates are delayed on this network: refreshing every 10 s';
+      statusEl.classList.add('polling');
+      statusEl.hidden = false;
+    }
+    reloadLists();
+    pollTimer = setInterval(reloadLists, POLL_MS);
+  }
+  if (streamUrl && window.EventSource) {
+    connect();
+    setInterval(function () {
+      if (!pollTimer && !streamStopped && document.visibilityState === 'visible'
+          && Date.now() - lastHeard > SILENT_LIMIT_MS) startPolling();
+    }, 5000);
+  }
 
   // Phones suspend background tabs; reconnect as soon as the screen is visible again
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && streamUrl && es && es.readyState === 2 && !streamStopped) {
+    if (document.visibilityState === 'visible' && !pollTimer) lastHeard = Date.now();  // phone just woke: give the stream a fresh 40 s
+    if (document.visibilityState === 'visible' && streamUrl && es && es.readyState === 2 && !streamStopped && !pollTimer) {
       retryMs = 1000;
       connect();
     }
@@ -256,6 +303,8 @@
   // after the browser has collected the form data, so the clicked button's value is sent.
   document.addEventListener('submit', function (e) {
     var form = e.target;
+    // Destructive forms ask first (e.g. Deactivate on the Staff page)
+    if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) { e.preventDefault(); return; }
     if (form.getAttribute('action') === '/logout') stopStream(); // no reconnect attempts while leaving
     if (!form.hasAttribute('data-once')) return;
     if (form.dataset.sent) { e.preventDefault(); return; }
