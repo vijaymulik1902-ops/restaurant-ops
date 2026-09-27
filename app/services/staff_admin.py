@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.auth import limiter, pin_length_for
 from app.db import read_session, write_session
 from app.models import Staff
+from app.ordering import seniority_key
 from app.services import ServiceError, audit
 from app.services.tables import get_active_staff
 
@@ -24,10 +25,10 @@ def _require_manager(s, staff_id: int) -> Staff:
 
 
 def list_staff() -> list[dict]:
-    """Everyone, active first, with role and section/station (never PIN data)."""
+    """Everyone in seniority order, with role and section/station (never PIN data)."""
     with read_session() as s:
-        rows = s.execute(select(Staff.id, Staff.name, Staff.role, Staff.section, Staff.station, Staff.active)
-                         .order_by(Staff.active.desc(), Staff.role, Staff.name)).all()
+        rows = s.execute(select(Staff.id, Staff.name, Staff.role, Staff.section, Staff.station, Staff.active)).all()
+    rows = sorted(rows, key=lambda r: seniority_key(r.role, r.station, r.section, r.name))
     return [{"staff_id": r.id, "name": r.name, "role": r.role, "section": r.section, "station": r.station,
              "active": r.active, "pin_length": pin_length_for(r.role)} for r in rows]
 

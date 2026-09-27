@@ -9,7 +9,7 @@
 {% macro pct(v) -%}{% if v is none %}—{% else %}{{ v }}%{% endif %}{%- endmacro %}
 {% from "_macros.html" import tip %}
 {% block content %}
-<div class="bar">
+<div class="page-head">
   <h2>Sales report</h2>
   <a role="button" class="secondary" href="/reports/sales.csv?{{ span }}">Download CSV</a>
 </div>
@@ -59,11 +59,11 @@
 {% endif %}
 <details {% if not CHART_JS_AVAILABLE %}open{% endif %}>
   <summary>Daily table</summary>
-  <div class="table-scroll"><table>
+  <div class="table-scroll"><table class="responsive">
     <thead><tr><th>Day</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Gross profit</th><th class="num">Operating exp.</th></tr></thead>
     {% for d in report.daily %}
-    <tr><td>{{ d.day.strftime('%a %d %b') }}</td><td class="num">{{ d.bills }}</td><td class="num">{{ d.net_sales_paise|rupees }}</td>
-        <td class="num">{{ d.gross_profit_paise|rupees }}</td><td class="num">{{ d.operating_expenses_paise|rupees }}</td></tr>
+    <tr><td data-label="Day">{{ d.day.strftime('%a %d %b') }}</td><td data-label="Bills" class="num">{{ d.bills }}</td><td data-label="Net sales" class="num">{{ d.net_sales_paise|rupees }}</td>
+        <td data-label="Gross profit" class="num">{{ d.gross_profit_paise|rupees }}</td><td data-label="Operating exp." class="num">{{ d.operating_expenses_paise|rupees }}</td></tr>
     {% endfor %}
   </table></div>
 </details>
@@ -74,10 +74,10 @@
 {% endif %}
 <details {% if not CHART_JS_AVAILABLE %}open{% endif %}>
   <summary>Hourly table</summary>
-  <table>
+  <table class="responsive">
     <thead><tr><th>Hour</th><th class="num">Bills</th><th class="num">Net sales</th></tr></thead>
     {% for h in report.hours if h.bills %}
-    <tr><td>{{ '%02d:00'|format(h.hour) }}</td><td class="num">{{ h.bills }}</td><td class="num">{{ h.net_sales_paise|rupees }}</td></tr>
+    <tr><td data-label="Hour">{{ '%02d:00'|format(h.hour) }}</td><td data-label="Bills" class="num">{{ h.bills }}</td><td data-label="Net sales" class="num">{{ h.net_sales_paise|rupees }}</td></tr>
     {% endfor %}
   </table>
 </details>
@@ -103,11 +103,11 @@
 </table>
 
 <h3>Payment modes</h3>
-<table>
+<table class="responsive">
   <thead><tr><th>Mode</th><th class="num">Bills</th><th class="num">Net sales</th><th class="num">Share</th></tr></thead>
   {% for mode, m in report.payment_modes.items() %}
-  <tr><td>{{ 'UPI' if mode == 'upi' else mode|capitalize }}</td><td class="num">{{ m.bills }}</td>
-      <td class="num">{{ m.net_sales_paise|rupees }}</td><td class="num">{{ pct(m.share_percent) }}</td></tr>
+  <tr><td data-label="Mode">{{ 'UPI' if mode == 'upi' else mode|capitalize }}</td><td data-label="Bills" class="num">{{ m.bills }}</td>
+      <td data-label="Net sales" class="num">{{ m.net_sales_paise|rupees }}</td><td data-label="Share" class="num">{{ pct(m.share_percent) }}</td></tr>
   {% endfor %}
 </table>
 

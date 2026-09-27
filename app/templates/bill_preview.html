@@ -2,7 +2,9 @@
 {% block title %}Bill · Table {{ order.table_number }}{% endblock %}
 {% block page %}bill-preview{% endblock %}
 {% block content %}
-<div class="bar">
+<div id="bill-panel">
+<button type="button" class="outline small panel-close" data-panel-close aria-label="Close bill"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+<div class="page-head">
   <h2>Table {{ order.table_number }} <small>{{ order.guest_count|plural("guest") }} · {{ order.waiter_name }}</small></h2>
   <span class="badge st-{{ order.status }}">{{ order.status }}</span>
 </div>
@@ -26,4 +28,5 @@
   </form>
 {% endif %}
 <p><a href="/counter" role="button" class="secondary outline big">Back to counter</a></p>
+</div>
 {% endblock %}

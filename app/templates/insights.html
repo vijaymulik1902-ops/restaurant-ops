@@ -6,7 +6,7 @@
                  'custom': 'Custom range'} %}
 {% set span = "start=" ~ start.isoformat() ~ "&end=" ~ end.isoformat() %}
 {% block content %}
-<div class="bar"><h2>Insights <small>manager only</small></h2></div>
+<div class="page-head"><h2>Insights</h2></div>
 <p class="range-label"><strong>{{ labels[preset] }}</strong> · {{ start|date_range(end) }}</p>
 <nav class="preset-grid" aria-label="Period">
   {% for p in presets + ('custom',) %}

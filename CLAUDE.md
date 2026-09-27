@@ -97,6 +97,17 @@ Rules that keep cost data private and separate from prices:
 - After each task: run `pytest -q` and fix failures before reporting done.
 - Run locally: `uvicorn app.main:app --reload` ; phones on same Wi-Fi: add `--host 0.0.0.0`.
 - Ask before adding any dependency.
+- Theme "Steel thali" (light) in app/static/style.css; keep the token NAMES (templates rely on them):
+  page #F3F5F7, cards #FFFFFF, borders #D3D9E0, text #18212B, muted #5A6573; primary teal #1F6F68
+  (white text); saffron #D98B1E fills / #C47A12 borders / #9A5A00 text for occupied+cooking;
+  chilli #C23B32 overdue/cancel/danger; green #2E8B57 borders+fills / #1E7A46 text (and go buttons)
+  for available/ready/paid; steel #8A96A3 neutral/billing. Charts: teal #00897B line, saffron #C47A12 bars.
+  "Dim kitchen" (chef screens only, localStorage, default off) is the dark variant of the same palette.
+  Every text/background pair must pass WCAG AA (4.5:1 text, 3:1 UI borders).
+- App shell: navigation is defined ONCE in app/web.py (NAV_ITEMS, PHONE_TABS, MORE_SHEET, SIDEBAR);
+  base.html renders the phone tab bar (< 900px), the laptop sidebar and the More/Me/Alerts sheets from it.
+  Only link pages the role can open; tests/test_shell.py checks this against the access matrix.
+  Icons are the inline SVG sprite in templates/_icons.html (no CDN). Manager lands on /home.
 - Fonts: Barlow Condensed 700/800 (SIL OFL) is bundled in app/static/fonts as woff2 with its OFL.txt;
   used for headings and table numbers via --font-display, system condensed fonts as fallback. No font CDN.
 - CSRF: every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`;

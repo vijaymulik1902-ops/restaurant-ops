@@ -17,9 +17,11 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import config
 from app.config import COOKIE_SECURE, SECRET_KEY
 from app.db import read_session
 from app.models import Staff
+from app.ordering import seniority_key
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +34,13 @@ PIN_LENGTH = {"manager": 6}
 DEFAULT_PIN_LENGTH = 4
 
 
+DEMO_PIN = "1111"
+
+
 def pin_length_for(role: str) -> int:
+    """4 digits, or 6 for a manager; in demo mode everyone uses 4 (the demo PIN)."""
+    if config.DEMO_MODE:
+        return DEFAULT_PIN_LENGTH
     return PIN_LENGTH.get(role, DEFAULT_PIN_LENGTH)
 
 # Monotonic clock, replaceable in tests
@@ -64,13 +72,17 @@ class LoginRequired(Exception):
 DEV_SECRET_KEY = "dev-only-change-me"
 
 
-def check_production_settings(secret_key: str | None = None, cookie_secure: bool | None = None) -> None:
-    """Refuse to start in production (COOKIE_SECURE on) with the public dev SECRET_KEY:
-    anyone could forge a session cookie and log in as the manager."""
+def check_production_settings(secret_key: str | None = None, cookie_secure: bool | None = None,
+                              demo_mode: bool | None = None) -> None:
+    """Refuse to start in production (COOKIE_SECURE on) with the public dev SECRET_KEY (anyone
+    could forge a manager session), or with DEMO_MODE (anyone could log in with PIN 1111)."""
     key = SECRET_KEY if secret_key is None else secret_key
     secure = COOKIE_SECURE if cookie_secure is None else cookie_secure
+    demo = config.DEMO_MODE if demo_mode is None else demo_mode
     if secure and key == DEV_SECRET_KEY:
         raise RuntimeError("Set a real SECRET_KEY in .env before running with COOKIE_SECURE=true")
+    if secure and demo:
+        raise RuntimeError("DEMO_MODE=true (everyone's PIN is 1111) cannot run with COOKIE_SECURE=true")
 
 
 def install(app: FastAPI) -> None:
@@ -210,9 +222,11 @@ def active_staff_names() -> list[dict]:
     """Names and roles for the login picker (no PIN data)."""
     with read_session() as s:
         rows = s.execute(
-            select(Staff.name, Staff.role).where(Staff.active.is_(True)).order_by(Staff.role, Staff.name)
+            select(Staff.name, Staff.role, Staff.station, Staff.section).where(Staff.active.is_(True))
         ).all()
-    return [{"name": r.name, "role": r.role, "pin_length": pin_length_for(r.role)} for r in rows]
+    rows = sorted(rows, key=lambda r: seniority_key(r.role, r.station, r.section, r.name))
+    return [{"name": r.name, "role": r.role, "station": r.station, "section": r.section,
+             "pin_length": pin_length_for(r.role)} for r in rows]
 
 
 def login(name: str, pin: str) -> CurrentStaff:
@@ -229,7 +243,8 @@ def login(name: str, pin: str) -> CurrentStaff:
         raise AuthError(f"Too many wrong PINs. Try again in {(locked + 59) // 60} min")
     # bcrypt rejects inputs over 72 bytes, so check the shape before hashing
     well_formed = isinstance(pin, str) and pin.isascii() and pin.isdigit() and 4 <= len(pin) <= MAX_PIN_LEN
-    if not well_formed or not bcrypt.checkpw(pin.encode(), pin_hash.encode()):
+    demo_ok = config.DEMO_MODE and pin == DEMO_PIN  # demo mode: 1111 works for everyone
+    if not well_formed or not (demo_ok or bcrypt.checkpw(pin.encode(), pin_hash.encode())):
         limiter.fail(current.id)
         raise AuthError("Wrong name or PIN")
     limiter.reset(current.id)

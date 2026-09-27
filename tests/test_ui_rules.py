@@ -53,3 +53,15 @@ def test_order_page_send_bar_has_summary_slot_and_prices(db):
     html = login("waiter").get(f"/orders/{opened['order_id']}").text
     assert 'id="send-count"' in html and 'class="send-label"' in html
     assert re.search(r'data-price="4500"', html)  # display-only total; the server prices the KOT
+
+
+def test_dim_kitchen_toggle_only_on_chef_screens(db):
+    chef = login("chef")
+    for url in ("/kitchen", "/kitchen/availability"):
+        assert "data-dim-toggle" in chef.get(url).text, url
+    assert "data-dim-toggle" not in login("waiter").get("/floor").text
+    base = (APP / "templates" / "base.html").read_text()
+    assert "localStorage.getItem('dimKitchen')" in base and "try {" in base   # remembered, guarded
+    assert "(pg === 'kitchen' || pg === 'availability')" in base               # chef screens only
+    css = (APP / "static" / "style.css").read_text()
+    assert ':root[data-theme="dark"] {' in css and "--ink: #151b22;" in css

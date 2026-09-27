@@ -11,7 +11,7 @@ from app.services import billing, orders, tables
 from conftest import TEST_PIN, open_and_order, serve_all
 
 NAMES = {"waiter": "Rahul", "waiter2": "Sneha", "chef": "Suresh", "counter": "Counter", "manager": "Manager"}
-HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/counter"}
+HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/home"}
 ROLES = ("waiter", "chef", "counter", "manager")
 
 
@@ -88,6 +88,9 @@ SCREENS = {
     "/reports/sales.csv?preset=this_week": {"manager"},
     "/expenses": {"manager"},
     "/audit?action=price_change&page=2": {"manager"},
+    "/home": {"manager"},
+    "/insights": {"manager"},
+    "/staff": {"manager"},
 }
 
 

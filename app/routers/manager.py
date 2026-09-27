@@ -11,7 +11,7 @@ from starlette.background import BackgroundTask
 
 from app.auth import CurrentStaff, require_role
 from app.models import EXPENSE_CATEGORIES, STATIONS
-from app.services import ServiceError, ai_chat, audit, backups, expenses, insights, menu, menu_admin, sales, staff_admin
+from app.services import ServiceError, ai_chat, audit, backups, expenses, home, insights, menu, menu_admin, sales, staff_admin
 from app.web import Id, OptionalDate, OptionalId, flash, parse_rupees, partial, publish, render, see_other
 
 router = APIRouter()
@@ -225,3 +225,11 @@ def insights_progress(request: Request, staff: CurrentStaff = Depends(manager_on
 def insights_new_conversation(request: Request, staff: CurrentStaff = Depends(manager_only)):
     ai_chat.conversations.clear(_conversation_id(request))
     return see_other("/insights")
+
+
+# ---------- manager home ----------
+
+@router.get("/home")
+def manager_home(request: Request, staff: CurrentStaff = Depends(manager_only)):
+    """The manager's landing page: today at a glance (read-only)."""
+    return render(request, "home.html", staff, **home.dashboard(), stream_url="/stream")

@@ -2,12 +2,13 @@
 {% block title %}Table {{ order.table_number }} · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}order{% endblock %}
 {% block content %}
-<div class="bar">
+<div class="page-head">
   <h2>Table {{ order.table_number }}
     <small>{{ order.guest_count|plural("guest") }} · {{ order.waiter_name }}</small></h2>
   <span class="badge st-{{ order.status }}">{{ order.status }}</span>
 </div>
 
+<h3 class="section-title">Sent to kitchen</h3>
 <section data-list-url="/orders/{{ order.order_id }}/items" id="order-items-wrap">
   {% include "_order_items.html" %}
 </section>
@@ -19,6 +20,7 @@
       data-once data-draft-key="order-{{ order.order_id }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="kot_id" value="{{ kot_id }}">
+  <h3 class="section-title">Add dishes</h3>
   <input type="search" id="menu-search" placeholder="Search menu…" aria-label="Search menu" autocomplete="off">
 
   {% include "_order_menu.html" %}

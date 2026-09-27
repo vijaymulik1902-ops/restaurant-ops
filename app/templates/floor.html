@@ -2,13 +2,21 @@
 {% block title %}Floor · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}floor{% endblock %}
 {% block content %}
-<div class="bar">
+<div class="page-head">
   <h2>{% if all_tables %}All tables{% else %}Section {{ staff.section }}{% endif %}</h2>
   {% if staff.role == 'waiter' %}
   <a role="button" class="secondary" href="/floor{% if not all_tables %}?all=1{% endif %}">
     {% if all_tables %}My section{% else %}All tables{% endif %}</a>
   {% endif %}
 </div>
+{% set sections = tables|map(attribute='section')|unique|sort %}
+{% if all_tables and sections|length > 1 %}
+<div class="chip-row" role="group" aria-label="Section">
+  <button type="button" class="chip-link active" data-section-filter="" aria-pressed="true">All</button>
+  {% for s in sections %}<button type="button" class="chip-link" data-section-filter="{{ s }}" aria-pressed="false">Section {{ s }}</button>{% endfor %}
+</div>
+{% endif %}
+{% include "_legend.html" %}
 <div id="board" class="grid-cards" data-list-url="/floor/board?view=floor{% if all_tables %}&all=1{% endif %}">
   {% include "_table_cards.html" %}
 </div>

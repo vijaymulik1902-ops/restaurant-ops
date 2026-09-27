@@ -1,0 +1,30 @@
+{# Sheets opened from the tab bar / sidebar. Hidden until opened (app.js); Escape or the backdrop closes. #}
+<div class="sheet-backdrop" data-sheet-close hidden></div>
+{% if nav.more %}
+<div class="sheet" id="sheet-more" role="dialog" aria-modal="true" aria-labelledby="sheet-more-title" hidden>
+  <button type="button" class="outline small sheet-close" data-sheet-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+  <h3 id="sheet-more-title">More</h3>
+  <ul class="sheet-list">
+    {% for it in nav.more %}<li><a href="{{ it.href }}" {% if it.active %}aria-current="page"{% endif %}><svg class="icon" aria-hidden="true"><use href="#i-{{ it.icon }}"/></svg>{{ it.label }}</a></li>{% endfor %}
+    <li><a href="/counter"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Counter</a></li>
+  </ul>
+</div>
+{% endif %}
+<div class="sheet" id="sheet-me" role="dialog" aria-modal="true" aria-labelledby="sheet-me-title" hidden>
+  <button type="button" class="outline small sheet-close" data-sheet-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+  <div class="me-card">
+    <span class="avatar avatar-lg role-{{ staff.role }}" aria-hidden="true">{{ staff.name|initials }}</span>
+    <div><h3 id="sheet-me-title">{{ staff.name }}</h3>
+      <p class="muted">{{ role_label(staff.role, staff.station, staff.section) }}</p></div>
+  </div>
+  <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="outline-danger big"><svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg> Log out</button></form>
+</div>
+{% if staff.role == 'waiter' %}
+<div class="sheet" id="sheet-alerts" role="dialog" aria-modal="true" aria-labelledby="sheet-alerts-title" hidden>
+  <button type="button" class="outline small sheet-close" data-sheet-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+  <h3 id="sheet-alerts-title">Food ready</h3>
+  <ul class="sheet-list" id="alert-list"></ul>
+  <p class="empty" id="alert-empty">No food-ready alerts yet. They appear here as the kitchen marks dishes ready.</p>
+</div>
+{% endif %}

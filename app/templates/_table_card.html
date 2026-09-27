@@ -11,6 +11,7 @@
 <a id="table-{{ t.table_id }}" href="{{ href }}"
    class="tcard st-{{ t.status }}{% if alert_in is not none and alert_in <= 0 %} late{% endif %}"
    data-status="{{ t.status }}"
+   data-section="{{ t.section }}"
    data-card-url="/floor/tables/{{ t.table_id }}/card?view={{ view }}"
    {% if alert_in is not none %}data-late-in="{{ alert_in }}"{% endif %}>
   <span class="tnum">{{ t.number }}</span>

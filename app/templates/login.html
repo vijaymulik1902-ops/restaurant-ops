@@ -2,31 +2,43 @@
 {% block title %}Log in · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}login{% endblock %}
 {% block content %}
-<h1 class="center">{{ RESTAURANT_NAME }}</h1>
-{% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
-<form method="post" action="/login" id="login-form" class="login">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <fieldset class="staff-pick">
-    <legend>Who are you?</legend>
-    {% for s in staff_list %}
-    <label class="pick">
-      <input type="radio" name="name" value="{{ s.name }}" data-pin-length="{{ s.pin_length }}" required {% if s.name == selected %}checked{% endif %}>
-      <span>{{ s.name }}<small>{{ s.role }}</small></span>
-    </label>
-    {% endfor %}
-  </fieldset>
-
-  <label for="pin">PIN</label>
-  <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
-         autocomplete="off" required placeholder="••••">
-  <div class="keypad" aria-label="PIN keypad">
-    {% for k in ['1','2','3','4','5','6','7','8','9'] %}
-    <button type="button" data-key="{{ k }}">{{ k }}</button>
-    {% endfor %}
-    <button type="button" data-key="clear" class="secondary">Clear</button>
-    <button type="button" data-key="0">0</button>
-    <button type="button" data-key="back" class="secondary">⌫</button>
+<div class="login">
+  <div class="login-head">
+    <h1>{{ RESTAURANT_NAME }}</h1>
+    {% if demo_mode() %}<p><span class="badge demo">Demo mode</span> Every PIN is 1111.</p>{% endif %}
   </div>
-  <button type="submit" class="big">Log in</button>
-</form>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" id="login-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset class="staff-pick">
+      <legend>Who are you?</legend>
+      {% for s in staff_list %}
+      <label class="pick role-{{ s.role }}">
+        <input type="radio" name="name" value="{{ s.name }}" data-pin-length="{{ s.pin_length }}" required {% if s.name == selected %}checked{% endif %}>
+        <span class="badge-btn">
+          <span class="initials" aria-hidden="true">{{ s.name|initials }}</span>
+          <span class="who-name">{{ s.name }}</span>
+          <span class="who-role">{{ role_label(s.role, s.station, s.section) }}</span>
+        </span>
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="pin-panel{% if not selected %} waiting{% endif %}" id="pin-panel">
+      <p class="for-who" id="for-who">{% if selected %}PIN for {{ selected }}{% else %}Tap your badge, then enter your PIN{% endif %}</p>
+      <label for="pin" class="muted">PIN</label>
+      <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+             autocomplete="off" required placeholder="••••">
+      <div class="keypad" aria-label="PIN keypad">
+        {% for k in ['1','2','3','4','5','6','7','8','9'] %}
+        <button type="button" data-key="{{ k }}">{{ k }}</button>
+        {% endfor %}
+        <button type="button" data-key="clear" class="secondary">Clear</button>
+        <button type="button" data-key="0">0</button>
+        <button type="button" data-key="back" class="secondary" aria-label="Delete last digit">⌫</button>
+      </div>
+      <button type="submit" class="big">Log in</button>
+    </div>
+  </form>
+</div>
 {% endblock %}

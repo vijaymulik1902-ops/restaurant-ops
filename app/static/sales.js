@@ -8,11 +8,13 @@
   var data = dataEl ? JSON.parse(dataEl.textContent) : null;
 
   /* ---------- charts ---------- */
-  // Single series each, so no legend: the heading names the chart. Colour: brass (the app's
-  // primary accent), validated against the wine surface. Axis text in the muted rose-grey.
-  var SERIES = '#b8892a';       // brass, one step deeper: passes the chart lightness band + 3:1 on the wine surface
-  var INK = '#cdb8bd';          // secondary text
-  var GRID = 'rgba(243, 231, 211, 0.09)';
+  // Single series each, so no legend: the heading names the chart. Steel thali palette:
+  // teal line and saffron bars, one step more saturated than the UI teal/saffron so they pass
+  // the chart palette checks (chroma floor, 3:1 against the white chart surface).
+  var LINE = '#00897b';
+  var BARS = '#c47a12';
+  var INK = '#5a6573';          // muted axis text
+  var GRID = 'rgba(24, 33, 43, 0.08)';
 
   function rupees(paise) {
     return '₹' + (paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -57,7 +59,7 @@
         type: 'line',
         data: {
           labels: data.days.map(function (d) { return d.slice(5); }),  // MM-DD
-          datasets: [{ data: data.daily, borderColor: SERIES, backgroundColor: SERIES, clip: false,
+          datasets: [{ data: data.daily, borderColor: LINE, backgroundColor: LINE, clip: false,
                        // Today isn't over: dash the segment into it so a low value doesn't read as a crash
                        segment: { borderDash: function (ctx) {
                          return data.lastDayInProgress && ctx.p1DataIndex === data.daily.length - 1 ? [4, 4] : undefined;
@@ -87,7 +89,7 @@
         type: 'bar',
         data: {
           labels: data.hours.map(function (_, h) { return (h < 10 ? '0' : '') + h; }),
-          datasets: [{ data: data.hours, backgroundColor: SERIES, borderRadius: { topLeft: 4, topRight: 4 },
+          datasets: [{ data: data.hours, backgroundColor: BARS, borderRadius: { topLeft: 4, topRight: 4 },
                        borderSkipped: 'bottom', maxBarThickness: 28 }]
         },
         options: opts

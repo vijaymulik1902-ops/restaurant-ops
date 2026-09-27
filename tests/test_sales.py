@@ -333,10 +333,11 @@ def test_plural_used_on_pages(db, clock):
 
 def test_nav_keeps_name_and_logout_together(db):
     html = login("manager").get("/reports/sales").text
-    me = html.split('<span class="me">')[1].split("</span>\n    </div>")[0]
-    assert "Manager" in me and "Log out" in me
-    links = html.split('<div class="links">')[1].split("</div>")[0]
-    assert "Log out" not in links and "Sales report" in links
+    top = html.split('<header class="app-top">')[1].split("</header>")[0]
+    assert "Manager" in top and "Log out" in top
+    side = html.split('<nav class="sidebar"')[1].split("</nav>")[0]
+    assert "Log out" not in side and "Reports" in side
+    assert 'href="/reports/sales" class="" data-nav="reports" aria-current="page"' in side
 
 
 def test_today_marked_in_progress_on_daily_chart(db, clock):

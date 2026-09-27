@@ -14,15 +14,67 @@ from fastapi.templating import Jinja2Templates
 from app import config, events
 from app.auth import CurrentStaff, csrf_token
 from app.services import Event, ServiceError
-from app.text import date_range, plural
+from app.text import date_range, initials, plural, role_label
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
-ROLE_HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/counter"}
+ROLE_HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/home"}
 FLOOR_ROLES = ("waiter", "counter", "manager")
 KITCHEN_ROLES = ("chef", "manager")
 COUNTER_ROLES = ("counter", "manager")
 CANCEL_REASONS = ("Customer changed mind", "Wrong item entered", "Out of stock")
+
+# ---------- navigation (one definition drives the phone tab bar, the More sheet and the sidebar) ----------
+# Every link points at a route the role can already open (see CLAUDE.md access matrix); items
+# with a "sheet" open an in-page panel instead of navigating. Tests check both.
+NAV_ITEMS = {
+    "home": {"label": "Home", "href": "/home", "icon": "home"},
+    "floor": {"label": "Floor", "href": "/floor", "icon": "floor"},
+    "orders": {"label": "Orders", "href": "/floor#orders", "icon": "orders"},
+    "alerts": {"label": "Alerts", "sheet": "alerts", "icon": "bell"},
+    "kitchen": {"label": "Kitchen", "href": "/kitchen", "icon": "flame"},
+    "summary": {"label": "Summary", "href": "/kitchen#cook-summary", "icon": "clipboard"},
+    "availability": {"label": "Availability", "href": "/kitchen/availability", "icon": "toggle"},
+    "counter": {"label": "Counter", "href": "/counter", "icon": "receipt"},
+    "reports": {"label": "Reports", "href": "/reports/sales", "icon": "chart"},
+    "dayclose": {"label": "Day close", "href": "/reports/day-close", "icon": "calendar"},
+    "insights": {"label": "Insights", "href": "/insights", "icon": "bulb"},
+    "menu": {"label": "Menu", "href": "/menu", "icon": "book"},
+    "staff": {"label": "Staff", "href": "/staff", "icon": "users"},
+    "expenses": {"label": "Expenses", "href": "/expenses", "icon": "wallet"},
+    "audit": {"label": "Audit", "href": "/audit", "icon": "shield"},
+    "me": {"label": "Me", "sheet": "me", "icon": "user"},
+    "more": {"label": "More", "sheet": "more", "icon": "dots"},
+}
+PHONE_TABS = {
+    "waiter": ["floor", "orders", "alerts", "me"],
+    "chef": ["kitchen", "summary", "availability", "me"],
+    "counter": ["counter", "floor", "me"],
+    "manager": ["home", "floor", "kitchen", "reports", "more"],
+}
+MORE_SHEET = ["menu", "staff", "expenses", "audit", "dayclose", "insights"]
+SIDEBAR = {
+    "waiter": [("Operations", ["floor", "orders", "alerts"])],
+    "chef": [("Kitchen", ["kitchen", "summary", "availability"])],
+    "counter": [("Operations", ["counter", "floor"])],
+    "manager": [("Operations", ["home", "floor", "kitchen", "counter"]),
+                ("Reports", ["reports", "dayclose", "insights"]),
+                ("Admin", ["menu", "staff", "expenses", "audit"])],
+}
+
+
+def nav_for(role: str, path: str = "") -> dict:
+    """Role-filtered navigation with the active item marked."""
+    def item(key: str) -> dict:
+        it = {"key": key, **NAV_ITEMS[key]}
+        href = it.get("href", "")
+        it["active"] = bool(href) and "#" not in href and (path == href or (href != "/" and path.startswith(href + "/")))
+        return it
+    return {
+        "tabs": [item(k) for k in PHONE_TABS.get(role, [])],
+        "more": [item(k) for k in MORE_SHEET] if role == "manager" else [],
+        "sidebar": [(group, [item(k) for k in keys]) for group, keys in SIDEBAR.get(role, [])],
+    }
 
 # Path ids must fit SQLite's INTEGER; a huge number would otherwise crash the query
 Id = Annotated[int, PathParam(ge=1, le=2**31 - 1)]
@@ -72,12 +124,16 @@ def table_alert_in(t: dict) -> int | None:
 templates.env.filters["rupees"] = rupees
 templates.env.filters["plural"] = plural
 templates.env.filters["date_range"] = date_range
+templates.env.filters["initials"] = initials
+templates.env.globals["role_label"] = role_label
 templates.env.globals.update(
     RESTAURANT_NAME=config.RESTAURANT_NAME,
     BUSINESS_DAY_START_HOUR=config.BUSINESS_DAY_START_HOUR,
     WARN_KITCHEN_SEC=config.WARN_KITCHEN_MIN * 60,
     table_alert_in=table_alert_in,
     CANCEL_REASONS=CANCEL_REASONS,
+    demo_mode=lambda: config.DEMO_MODE,  # read at render time (tests and .env can switch it)
+    nav_for=nav_for,
     # Chart.js is vendored at app/static/chart.umd.min.js (no CDN); pages fall back to tables without it
     CHART_JS_AVAILABLE=(Path(__file__).resolve().parent / "static" / "chart.umd.min.js").is_file(),
 )

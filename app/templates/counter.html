@@ -2,16 +2,25 @@
 {% block title %}Counter · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}counter{% endblock %}
 {% block content %}
-<div class="bar">
-  <h2>All tables</h2>
+<div class="page-head">
+  <h2>Counter</h2>
   {% if staff.role == 'manager' %}<a href="/reports/day-close" role="button" class="secondary">Day close</a>{% endif %}
 </div>
-<div class="filters" role="group" aria-label="Filter tables">
-  {% for f in ['all', 'available', 'occupied', 'billing'] %}
-  <button type="button" class="{% if f != 'all' %}outline {% endif %}filter-btn" data-filter="{{ f }}">{{ f|capitalize }}</button>
-  {% endfor %}
-</div>
-<div id="board" class="grid-cards" data-filter="all" data-list-url="/floor/board?view=counter&all=1">
-  {% include "_table_cards.html" %}
+<div class="counter-split">
+  <div>
+    <div class="filters" role="group" aria-label="Filter tables">
+      {% for f, label in [('active', 'Needs bill'), ('billing', 'Billing'), ('occupied', 'Occupied'), ('available', 'Free'), ('all', 'All')] %}
+      <button type="button" class="{% if f != 'active' %}outline {% endif %}filter-btn" data-filter="{{ f }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+    {% include "_legend.html" %}
+    <div id="board" class="grid-cards" data-filter="active" data-list-url="/floor/board?view=counter&all=1">
+      {% include "_table_cards.html" %}
+    </div>
+    <div class="empty" id="counter-quiet"><strong>No tables need a bill.</strong>Occupied tables appear here; tap "All" to see every table.</div>
+  </div>
+  <aside id="counter-panel" class="counter-panel panel-idle" aria-live="polite" aria-label="Bill">
+    <p class="panel-empty">Tap a table to see its bill here.</p>
+  </aside>
 </div>
 {% endblock %}

@@ -2,9 +2,10 @@
 {% block title %}Dishes · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}availability{% endblock %}
 {% block content %}
-<div class="bar">
+<div class="page-head">
   <h2>Dish availability{% if staff.role == 'chef' %} <small>{{ staff.station|capitalize }}</small>{% endif %}</h2>
-  <a href="/kitchen" role="button" class="secondary">Kitchen board</a>
+  <span class="head-actions"><button type="button" class="dim-toggle" data-dim-toggle aria-pressed="false">Dim kitchen</button>
+  <a href="/kitchen" role="button" class="outline small">Kitchen board</a></span>
 </div>
 <p class="muted">Turn a dish off when it runs out. Waiters see it greyed out at once. Orders already sent are not affected.</p>
 {% for station, dishes in dishes|groupby('station') %}

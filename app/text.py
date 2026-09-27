@@ -34,3 +34,21 @@ def whole_rupees(paise: int) -> str:
             groups.insert(0, head)
         digits = ",".join(groups) + "," + tail
     return f"{sign}₹{digits}"
+
+
+def initials(name: str) -> str:
+    """Badge initials: first letters of the first two words, or the first two letters of a
+    single name ("Rahul" -> "RA", "Rahul Shah" -> "RS")."""
+    words = [w for w in (name or "").split() if w]
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[0][0] + words[1][0]).upper()
+
+
+def role_label(role: str, station: str | None = None, section: str | None = None) -> str:
+    """'Manager', 'Counter', 'Chef · tandoor', 'Waiter · A'."""
+    base = role.capitalize()
+    extra = station if role == "chef" else section if role == "waiter" else None
+    return f"{base} · {extra}" if extra else base

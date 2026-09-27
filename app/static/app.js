@@ -23,6 +23,17 @@
     setTimeout(function () { el.remove(); }, ms || 5000);
   }
 
+  // Server flash messages (after a redirect) show as a toast; the inline copy stays for no-JS
+  (function () {
+    var box = document.getElementById('flash');
+    var f = box && box.querySelector('.flash');
+    if (!f) return;
+    var kind = /flash-(\w+)/.exec(f.className);
+    kind = kind ? kind[1] : '';
+    toast(f.textContent.trim(), { error: 'error', ok: 'ok', sent: 'ok', warn: 'warn' }[kind] || '', kind === 'error' ? 8000 : 5000);
+    box.hidden = true;
+  })();
+
   var audioCtx = null;
   function unlockAudio() {
     // iOS only allows audio after a user gesture; create the context on the first tap
@@ -52,7 +63,110 @@
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     beep();
     toast('Table ' + d.table_number + ': ' + d.qty + ' × ' + d.name + ' READY', 'ready', 8000);
+    rememberAlert(d);
   }
+
+  /* ---------- waiter "Alerts" sheet: recent food-ready alerts, kept for this tab only ---------- */
+  var ALERT_KEY = 'readyAlerts';
+  function readAlerts() {
+    try { return JSON.parse(sessionStorage.getItem(ALERT_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function rememberAlert(d) {
+    var list = readAlerts();
+    list.unshift({ t: Date.now(), table: d.table_number, qty: d.qty, name: d.name, order: d.order_id, seen: false });
+    list = list.slice(0, 20);
+    try { sessionStorage.setItem(ALERT_KEY, JSON.stringify(list)); } catch (e) { /* not kept */ }
+    renderAlerts(list);
+  }
+  function renderAlerts(list) {
+    list = list || readAlerts();
+    var unseen = list.filter(function (a) { return !a.seen; }).length;
+    document.querySelectorAll('[data-alert-count]').forEach(function (el) {
+      el.textContent = unseen > 9 ? '9+' : String(unseen);
+      el.hidden = unseen === 0;
+    });
+    var ul = document.getElementById('alert-list');
+    if (!ul) return;
+    ul.textContent = '';
+    list.forEach(function (a) {
+      var li = document.createElement('li');
+      var link = document.createElement('a');
+      link.href = a.order ? '/orders/' + a.order : '/floor';
+      var time = new Date(a.t);
+      link.textContent = 'Table ' + a.table + ': ' + a.qty + ' × ' + a.name + ' ready · ' +
+        String(time.getHours()).padStart(2, '0') + ':' + String(time.getMinutes()).padStart(2, '0');
+      li.appendChild(link);
+      ul.appendChild(li);
+    });
+    var empty = document.getElementById('alert-empty');
+    if (empty) empty.hidden = list.length > 0;
+  }
+  renderAlerts();
+
+  /* ---------- sheets (More / Me / Alerts) ---------- */
+  var openSheet = null, sheetOpener = null;
+  function closeSheet() {
+    if (!openSheet) return;
+    openSheet.hidden = true;
+    document.querySelectorAll('.sheet-backdrop').forEach(function (b) { b.hidden = true; });
+    openSheet = null;
+    if (sheetOpener) sheetOpener.focus();
+  }
+  document.addEventListener('click', function (e) {
+    var opener = e.target.closest('[data-sheet-open]');
+    if (opener) {
+      var sheet = document.getElementById('sheet-' + opener.dataset.sheetOpen);
+      if (!sheet) return;
+      closeSheet();
+      sheet.hidden = false;
+      document.querySelectorAll('.sheet-backdrop').forEach(function (b) { b.hidden = false; });
+      openSheet = sheet; sheetOpener = opener;
+      var first = sheet.querySelector('a, button:not(.sheet-close)') || sheet.querySelector('button');
+      if (first) first.focus();
+      if (opener.dataset.sheetOpen === 'alerts') {  // opening the list marks everything seen
+        var list = readAlerts().map(function (a) { a.seen = true; return a; });
+        try { sessionStorage.setItem(ALERT_KEY, JSON.stringify(list)); } catch (err) { /* ignore */ }
+        renderAlerts(list);
+      }
+      return;
+    }
+    if (e.target.closest('[data-sheet-close]')) closeSheet();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+  /* ---------- sidebar collapse (laptops), remembered per device ---------- */
+  document.querySelectorAll('[data-nav-collapse]').forEach(function (btn) {
+    function apply(collapsed) {
+      body.classList.toggle('nav-collapsed', collapsed);
+      btn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      btn.setAttribute('aria-label', collapsed ? 'Expand menu' : 'Collapse menu');
+    }
+    var saved = false;
+    try { saved = localStorage.getItem('navCollapsed') === '1'; } catch (e) { /* default open */ }
+    apply(saved);
+    btn.addEventListener('click', function () {
+      var next = !body.classList.contains('nav-collapsed');
+      apply(next);
+      try { localStorage.setItem('navCollapsed', next ? '1' : '0'); } catch (e) { /* not remembered */ }
+    });
+  });
+
+  /* ---------- "Orders" tab = floor filtered to tables with an open order ---------- */
+  function applyFloorHash() {
+    if (body.dataset.page !== 'floor') return;
+    var board = document.getElementById('board');
+    var orders = location.hash === '#orders';
+    if (board) {
+      if (orders) board.dataset.filter = 'active'; else delete board.dataset.filter;
+    }
+    document.querySelectorAll('[data-nav="floor"], [data-nav="orders"]').forEach(function (a) {
+      var mine = (a.dataset.nav === 'orders') === orders;
+      if (location.pathname === '/floor' && mine) a.setAttribute('aria-current', 'page');
+      else if (location.pathname === '/floor') a.removeAttribute('aria-current');
+    });
+  }
+  window.addEventListener('hashchange', applyFloorHash);
+  applyFloorHash();
 
   // Server-side errors on HTMX requests arrive as an HX-Trigger "flash" event
   body.addEventListener('flash', function (e) {
@@ -124,7 +238,17 @@
       htmx.ajax('GET', el.dataset.cardUrl, { target: el, swap: 'outerHTML' });
     }
   }
+  // Manager Home: re-read the whole live block (tiles + mini map) at most every 2 s
+  var homeTimer = null;
+  function refreshHome() {
+    if (!document.querySelector('[data-home]') || homeTimer) return;
+    homeTimer = setTimeout(function () {
+      homeTimer = null;
+      htmx.ajax('GET', '/home', { target: '#home-live', select: '#home-live', swap: 'outerHTML' });
+    }, 2000);
+  }
   function reloadLists() {
+    refreshHome();
     document.querySelectorAll('[data-list-url]').forEach(function (el) {
       htmx.ajax('GET', el.dataset.listUrl, { target: el, swap: 'innerHTML' });
     });
@@ -176,10 +300,12 @@
 
   var handlers = {
     table: function (d) {
+      refreshHome();
       refreshCard(document.getElementById('table-' + d.table_id));
       refreshOrder(d.order_id);
     },
     item: function (d) {
+      refreshHome();
       if (kitchenBoard(d.channel)) {
         refreshCard(document.getElementById('item-' + d.item_id));
         refreshSummary();
@@ -191,6 +317,7 @@
       refreshOrder(d.order_id);
     },
     kot: function (d) {
+      refreshHome();
       var board = kitchenBoard(d.channel);
       if (board) {
         (d.items || []).forEach(function (it) {
@@ -209,7 +336,7 @@
     order: function (d) { refreshOrder(d.order_id); },
     menu: function (d) { setDishAvailable(d); },
     menu_changed: function () { refreshCard(document.getElementById('menu-block')); },
-    bill: function () { /* table events already refresh the card */ }
+    bill: function () { refreshHome(); }
   };
 
   var streamUrl = body.dataset.stream;
@@ -395,6 +522,12 @@
     }
     if (!skipSave) saveDraft();
   }
+  document.addEventListener('click', function (e) {  // "Note" opens that dish's note field
+    var nb = e.target.closest('[data-note-for]');
+    if (!nb) return;
+    var field = document.querySelector('#kot-form input[name="' + nb.dataset.noteFor + '"]');
+    if (field) { field.hidden = false; field.focus(); }
+  });
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('[data-step]');
     if (!btn) return;
@@ -427,6 +560,18 @@
     restoreDraft();
     var search = document.getElementById('menu-search');
     if (search && search.value) search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  /* ---------- "Dim kitchen" (chef screens): dark variant, remembered per device ---------- */
+  document.querySelectorAll('[data-dim-toggle]').forEach(function (btn) {
+    var html = document.documentElement;
+    btn.setAttribute('aria-pressed', html.getAttribute('data-theme') === 'dark' ? 'true' : 'false');
+    btn.addEventListener('click', function () {
+      var dim = html.getAttribute('data-theme') !== 'dark';
+      html.setAttribute('data-theme', dim ? 'dark' : 'light');
+      btn.setAttribute('aria-pressed', dim ? 'true' : 'false');
+      try { localStorage.setItem('dimKitchen', dim ? '1' : '0'); } catch (e) { /* not remembered */ }
+    });
   });
 
   /* ---------- insights: suggested questions + clear box after asking ---------- */
@@ -466,6 +611,40 @@
     }
   });
 
+  /* ---------- floor: section chips (a style rule, so it survives card swaps) ---------- */
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('[data-section-filter]');
+    if (!chip) return;
+    var sec = chip.dataset.sectionFilter;
+    var rule = document.getElementById('section-filter-style');
+    if (!rule) { rule = document.createElement('style'); rule.id = 'section-filter-style'; document.head.appendChild(rule); }
+    rule.textContent = sec ? '#board .tcard:not([data-section="' + sec.replace(/[^A-Za-z0-9]/g, '') + '"]) { display: none; }' : '';
+    document.querySelectorAll('[data-section-filter]').forEach(function (c) {
+      c.classList.toggle('active', c === chip);
+      c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+    });
+  });
+
+  /* ---------- counter: bill panel beside the tables (sheet on phones) ---------- */
+  var panel = document.getElementById('counter-panel');
+  if (panel) {
+    document.addEventListener('click', function (e) {
+      var card = e.target.closest('#board a.tcard');
+      if (!card || e.ctrlKey || e.metaKey || e.shiftKey || !/^\/counter\/orders\//.test(card.getAttribute('href'))) return;
+      e.preventDefault();
+      panel.classList.remove('panel-idle');
+      htmx.ajax('GET', card.getAttribute('href'), { target: '#counter-panel', select: '#bill-panel', swap: 'innerHTML' });
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-panel-close]')) return;
+      panel.classList.add('panel-idle');
+      var idle = document.createElement('p');
+      idle.className = 'panel-empty';
+      idle.textContent = 'Tap a table to see its bill here.';
+      panel.replaceChildren(idle);
+    });
+  }
+
   /* ---------- counter: status filter ---------- */
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.filter-btn');
@@ -474,6 +653,20 @@
     board.dataset.filter = btn.dataset.filter;
     document.querySelectorAll('.filter-btn').forEach(function (b) {
       b.classList.toggle('outline', b !== btn);
+    });
+  });
+
+  /* ---------- login: choosing a staff badge slides the keypad up ---------- */
+  var pinPanel = document.getElementById('pin-panel');
+  document.querySelectorAll('.staff-pick input[name="name"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      if (!pinPanel) return;
+      pinPanel.classList.remove('waiting');
+      var who = document.getElementById('for-who');
+      if (who) who.textContent = 'PIN for ' + radio.value;
+      var p = document.getElementById('pin');
+      if (p) p.value = '';
+      pinPanel.scrollIntoView({ block: 'nearest' });
     });
   });
 

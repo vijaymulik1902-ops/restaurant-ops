@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db import now, read_session
 from app.models import AuditLog, Staff
+from app.ordering import seniority_key
 from app.services import ServiceError, business_day_bounds
 
 ITEM_CANCEL = "item_cancel"
@@ -121,7 +122,8 @@ def list_audit(date_from: date | None = None, date_to: date | None = None, staff
             .order_by(AuditLog.at.desc(), AuditLog.id.desc())
             .limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE)
         ).all()
-        staff = s.execute(select(Staff.id, Staff.name).order_by(Staff.name)).all()
+        staff = sorted(s.execute(select(Staff.id, Staff.name, Staff.role, Staff.station, Staff.section)).all(),
+                       key=lambda x: seniority_key(x.role, x.station, x.section, x.name))
 
     out = []
     for r in rows:

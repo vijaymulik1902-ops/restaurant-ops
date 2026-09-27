@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light" data-page="{% block html_page %}{{ self.page() }}{% endblock %}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    // "Dim kitchen": dark variant on chef screens only, remembered per device (default off)
+    try {
+      var pg = document.documentElement.getAttribute('data-page');
+      if ((pg === 'kitchen' || pg === 'availability') && localStorage.getItem('dimKitchen') === '1') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) { /* storage blocked: stay light */ }
+  </script>
   <title>{% block title %}{{ RESTAURANT_NAME }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/pico.min.css">
   <link rel="stylesheet" href="/static/style.css">
@@ -14,29 +23,44 @@
       {% if stream_url %}data-stream="{{ stream_url }}"{% endif %}
       {% if staff %}data-staff-id="{{ staff.id }}" data-role="{{ staff.role }}"{% endif %}>
   {% if staff %}
-  <nav class="topbar">
-    <div class="topbar-row">
-      <a class="brand" href="/">{{ RESTAURANT_NAME }}</a>
-      <span class="me">
-        <span class="who">{{ staff.name }}</span>
-        <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-btn">Log out</button></form>
-      </span>
-    </div>
-    <div class="links">
-      {% if staff.role in ('waiter', 'counter', 'manager') %}<a href="/floor">Floor</a>{% endif %}
-      {% if staff.role in ('chef', 'manager') %}<a href="/kitchen">Kitchen</a><a href="/kitchen/availability">Dishes</a>{% endif %}
-      {% if staff.role in ('counter', 'manager') %}<a href="/counter">Counter</a>{% endif %}
-      {% if staff.role == 'manager' %}<a href="/insights">Insights</a><a href="/reports/sales">Sales report</a><a href="/reports/day-close">Day close</a><a href="/expenses">Expenses</a><a href="/menu">Menu</a><a href="/staff">Staff</a><a href="/audit">Audit</a>{% endif %}
-    </div>
-  </nav>
+  {% include "_icons.html" %}
+  {% from "_nav.html" import nav_link %}
+  {% set nav = nav_for(staff.role, request.url.path) %}
+<header class="app-top">
+  <a class="brand" href="/">{{ RESTAURANT_NAME }}</a>
+  {% if demo_mode() %}<span class="badge demo">Demo mode</span>{% endif %}
+  <span class="spacer"></span>
+  <span class="me">
+    <span class="avatar role-{{ staff.role }}" title="{{ staff.name }}" aria-hidden="true">{{ staff.name|initials }}</span>
+    <span class="who">{{ staff.name }}</span>
+    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-btn logout-btn" aria-label="Log out"><svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg><span class="label">Log out</span></button></form>
+  </span>
+</header>
+<nav class="tabbar" aria-label="Main">
+  {% for it in nav.tabs %}{{ nav_link(it) }}{% endfor %}
+</nav>
   <div id="live-status" class="live-status" hidden>Reconnecting…</div>
   {% endif %}
   <div id="flash">
     {% if flash %}<div class="flash flash-{{ flash.kind }}" role="alert">{{ flash.message }}</div>{% endif %}
   </div>
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="layout{% if not staff %} no-nav{% endif %}">
+    {% if staff %}
+<nav class="sidebar" aria-label="Sections">
+  {% for group, items in nav.sidebar %}
+  {% if nav.sidebar|length > 1 %}<div class="group">{{ group }}</div>{% endif %}
+  {% for it in items %}{{ nav_link(it) }}{% endfor %}
+  {% endfor %}
+  <button type="button" class="collapse-btn" data-nav-collapse aria-pressed="false" aria-label="Collapse menu">
+    <svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg><span class="label">Collapse</span>
+  </button>
+</nav>
+    {% endif %}
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% if staff %}{% include "_sheets.html" %}{% endif %}
   <div id="toasts" aria-live="assertive"></div>
   <script src="/static/htmx.min.js"></script>
   <script src="/static/app.js"></script>

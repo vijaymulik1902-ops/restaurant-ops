@@ -4,7 +4,7 @@
 {% from "_macros.html" import tip %}
 {% block content %}
 {% set r = report %}
-<div class="bar">
+<div class="page-head">
   <h2>Day close <small>{{ r.date.strftime('%a %d %b %Y') }}</small></h2>
   <form method="get" action="/reports/day-close" class="inline">
     <input type="date" name="day" value="{{ r.date.isoformat() }}" aria-label="Business day" onchange="this.form.submit()">
@@ -28,11 +28,11 @@
 <h3 class="{% if r.mismatches %}danger-text{% endif %}">Mismatches ({{ r.mismatches|length }})</h3>
 {% if r.mismatches %}
 <p class="danger-text">Items ordered this business day on orders that are not paid yet.</p>
-<table class="mismatch">
+<table class="responsive mismatch">
   <thead><tr><th>Table</th><th>Item</th><th>Item status</th><th>Order</th></tr></thead>
   {% for m in r.mismatches %}
-  <tr><td>{{ m.table_number }}</td><td>{{ m.qty }} × {{ m.name }}</td><td>{{ m.item_status }}</td>
-      <td>#{{ m.order_id }} {{ m.order_status }}</td></tr>
+  <tr><td data-label="Table">{{ m.table_number }}</td><td data-label="Item">{{ m.qty }} × {{ m.name }}</td><td data-label="Item status">{{ m.item_status }}</td>
+      <td data-label="Order">#{{ m.order_id }} {{ m.order_status }}</td></tr>
   {% endfor %}
 </table>
 {% else %}
@@ -41,11 +41,11 @@
 
 <h3>Cancelled items ({{ r.cancelled_items|length }})</h3>
 {% if r.cancelled_items %}
-<table>
+<table class="responsive">
   <thead><tr><th>Table</th><th>Item</th><th class="num">Value</th><th>Reason</th></tr></thead>
   {% for c in r.cancelled_items %}
-  <tr><td>{{ c.table_number }}</td><td>{{ c.qty }} × {{ c.name }}</td>
-      <td class="num">{{ c.value_paise|rupees }}</td><td>{{ c.reason }}</td></tr>
+  <tr><td data-label="Table">{{ c.table_number }}</td><td data-label="Item">{{ c.qty }} × {{ c.name }}</td>
+      <td data-label="Value" class="num">{{ c.value_paise|rupees }}</td><td data-label="Reason">{{ c.reason }}</td></tr>
   {% endfor %}
 </table>
 {% else %}<p class="muted">None.</p>{% endif %}

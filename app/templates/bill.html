@@ -2,7 +2,9 @@
 {% block title %}Bill {{ bill.bill_no }} · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}bill{% endblock %}
 {% block content %}
-<div class="bar">
+<div id="bill-panel">
+<button type="button" class="outline small panel-close" data-panel-close aria-label="Close bill"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+<div class="page-head">
   <h2>Bill #{{ bill.bill_no }} <small>Table {{ bill.table_number }}</small></h2>
   <span class="badge st-{{ 'paid' if bill.paid_at else 'billed' }}">{{ 'paid' if bill.paid_at else 'unpaid' }}</span>
 </div>
@@ -22,5 +24,6 @@
 <div class="pay-grid">
   <a href="/counter/bills/{{ bill.bill_id }}/print" target="_blank" role="button" class="secondary big">Print bill</a>
   <a href="/counter" role="button" class="secondary outline big">Back to counter</a>
+</div>
 </div>
 {% endblock %}

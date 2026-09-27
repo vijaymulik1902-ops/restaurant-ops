@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Home · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}home{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h2>Today</h2><p class="muted sub">{{ today.strftime('%a %d %b') }} · business day from {{ '%02d:00' % BUSINESS_DAY_START_HOUR }}</p></div>
+  <a role="button" class="outline small" href="/reports/sales?preset=today">Sales report</a>
+</div>
+<div id="home-live" data-home>
+  <div class="tiles">
+    <div class="tile"><small>Net sales</small><strong>{{ net_sales_paise|rupees }}</strong></div>
+    <div class="tile"><small>Bills paid</small><strong>{{ bills }}</strong></div>
+    <div class="tile"><small>Tables in use</small><strong>{{ tables_occupied }}/{{ tables_total }}</strong></div>
+    <div class="tile"><small>Open orders</small><strong>{{ open_orders }}</strong></div>
+    <div class="tile{% if items_late %} alert{% endif %}"><small>Kitchen items late</small><strong>{{ items_late }}</strong></div>
+  </div>
+  <div class="home-grid">
+    <section class="card">
+      <div class="bar"><h3>Floor</h3><a href="/floor" class="small-link">Open floor</a></div>
+      <div class="legend" aria-hidden="true"><span><i class="l-available"></i>Free</span><span><i class="l-occupied"></i>Occupied</span><span><i class="l-billing"></i>Billing</span></div>
+      <div class="mini-map">
+        {% for t in tables %}
+        <a class="st-{{ t.status }}" href="{% if t.order_id %}/orders/{{ t.order_id }}{% else %}/floor/tables/{{ t.table_id }}/open{% endif %}"
+           title="Table {{ t.number }} · {{ t.status }}" aria-label="Table {{ t.number }}, {{ t.status }}">{{ t.number }}</a>
+        {% else %}<div class="empty">No tables set up.</div>{% endfor %}
+      </div>
+    </section>
+    <section class="card">
+      <div class="bar"><h3>Insights · last 30 days</h3><a href="/insights" class="small-link">All insights</a></div>
+      {% for c in insights %}
+      <article class="insight"><small>{{ c.title }}</small><strong>{{ c.figure }}</strong><p>{{ c.sentence }}</p></article>
+      {% else %}<div class="empty"><strong>No sales yet.</strong>Insights appear once bills are paid.</div>{% endfor %}
+    </section>
+  </div>
+</div>
+<h3 class="section-title">Quick links</h3>
+<div class="quick-links">
+  <a href="/counter"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>Counter</a>
+  <a href="/kitchen"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>Kitchen</a>
+  <a href="/reports/day-close"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Day close</a>
+  <a href="/expenses"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg>Expenses</a>
+  <a href="/menu"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Menu</a>
+  <a href="/staff"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Staff</a>
+</div>
+{% endblock %}

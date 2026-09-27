@@ -1,7 +1,11 @@
 <div id="order-items" data-card-url="/orders/{{ order.order_id }}/items" data-order-id="{{ order.order_id }}">
   {% if order['items'] %}
+  <ol class="kot-timeline">
+  {% for kot_number, kot_items in order['items']|groupby('kot_number') %}
+  <li>
+  <div class="kot-head">KOT #{{ kot_number }} · {{ kot_items[0].created_at.strftime('%H:%M') }}</div>
   <ul class="items">
-    {% for i in order['items'] %}
+    {% for i in kot_items %}
     <li class="item st-{{ i.status }}">
       <span class="iname">{{ i.qty }} × {{ i.name }}
         {% if i.note %}<small>{{ i.note }}</small>{% endif %}
@@ -32,6 +36,9 @@
     </li>
     {% endfor %}
   </ul>
+  </li>
+  {% endfor %}
+  </ol>
   <p class="total">Running total: <strong>{{ order.total_paise|rupees }}</strong></p>
   {% else %}
   <p class="muted">Nothing ordered yet. Pick dishes below, then tap Send to kitchen.</p>

@@ -1,0 +1,13 @@
+{# App shell. One role-filtered definition (web.nav_for) feeds the phone tabs, the More sheet and the sidebar. #}
+{% macro nav_link(it, cls='') -%}
+  {%- if it.sheet -%}
+  <button type="button" class="{{ cls }}" data-sheet-open="{{ it.sheet }}" data-nav="{{ it.key }}" aria-haspopup="dialog">
+    <svg class="icon" aria-hidden="true"><use href="#i-{{ it.icon }}"/></svg><span class="label">{{ it.label }}</span>
+    {%- if it.key == 'alerts' %}<span class="tab-count" data-alert-count hidden></span>{% endif %}
+  </button>
+  {%- else -%}
+  <a href="{{ it.href }}" class="{{ cls }}" data-nav="{{ it.key }}" {% if it.active %}aria-current="page"{% endif %}>
+    <svg class="icon" aria-hidden="true"><use href="#i-{{ it.icon }}"/></svg><span class="label">{{ it.label }}</span>
+  </a>
+  {%- endif -%}
+{%- endmacro %}
