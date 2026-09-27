@@ -429,6 +429,24 @@
     if (search && search.value) search.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
+  /* ---------- insights: suggested questions + clear box after asking ---------- */
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip-q');
+    if (!chip) return;
+    var box = document.getElementById('ai-question');
+    var form = document.getElementById('ai-form');
+    if (!box || !form) return;
+    box.value = chip.dataset.question;
+    form.requestSubmit();
+  });
+  body.addEventListener('htmx:afterRequest', function (e) {
+    if (e.detail.elt && e.detail.elt.id === 'ai-form' && e.detail.successful) {
+      document.getElementById('ai-question').value = '';
+      var log = document.getElementById('chat-log');
+      if (log && log.lastElementChild) log.lastElementChild.scrollIntoView({ block: 'nearest' });
+    }
+  });
+
   /* ---------- counter: status filter ---------- */
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.filter-btn');

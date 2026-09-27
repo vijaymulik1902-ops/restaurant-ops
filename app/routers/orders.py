@@ -90,7 +90,8 @@ async def send_kot(request: Request, order_id: Id, staff: CurrentStaff = Depends
     except ServiceError as e:
         # Re-render with the waiter's picks intact. Nothing was saved, so a fresh KOT id is safe.
         screen = await run_in_threadpool(orders.order_screen, order_id, staff.id, staff.role, staff.section)
-        return render(request, "order.html", staff, status_code=422, **screen,
+        # 200, not 422: this IS the friendly error flow (message + the waiter's picks kept)
+        return render(request, "order.html", staff, **screen,
                       kot_id=_new_kot_id(), selection=_selection(form),
                       flash={"message": e.message, "kind": "error"})
     publish(events)

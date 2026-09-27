@@ -19,6 +19,11 @@ TIMEZONE = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
 # (orders after midnight) belongs to the evening it started in
 BUSINESS_DAY_START_HOUR = int(os.getenv("BUSINESS_DAY_START_HOUR", "4"))
 
+# AI chat on /insights (Google Gemini REST API). Empty key = chat disabled, insight cards still work.
+# Default model: gemini-3.8-flash, the latest stable Flash model; free tier; supports function calling.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+
 # Floor timers: minutes before a table/item turns red
 WARN_NO_ORDER_MIN = int(os.getenv("WARN_NO_ORDER_MIN", "10"))
 WARN_FOOD_WAITING_MIN = int(os.getenv("WARN_FOOD_WAITING_MIN", "5"))

@@ -174,3 +174,27 @@ def test_cancelled_item_leaves_kitchen_board_with_event(db):
     _, events = kitchen.cancel_item(item_id, "Out of stock", db["staff"]["waiter"])
     assert kitchen.live_items("tandoor") == []
     assert any(e.channel == "station:tandoor" and e.data["status"] == "cancelled" for e in events)
+
+
+@pytest.mark.parametrize("finish", ["served", "cancelled"])
+def test_pickup_slip_leaves_the_board_live(db, finish):
+    """A ready item shows as a green pickup slip; serving or cancelling it sends a station event,
+    and the card the kitchen page then re-fetches is empty, which removes the slip."""
+    from test_routes import login
+
+    item_id = _item(db)
+    kitchen.start_item(item_id, "tandoor")
+    kitchen.ready_item(item_id, "tandoor")
+    chef = login("chef")
+    slip = chef.get(f"/kitchen/items/{item_id}/card?station=tandoor").text
+    assert "kcard st-ready" in slip and "waiting for pickup" in slip
+
+    if finish == "served":
+        _, events = kitchen.serve_item(item_id, db["staff"]["waiter"])
+    else:
+        _, events = kitchen.cancel_item(item_id, "Guest left", db["staff"]["manager"])
+    assert any(e.channel == "station:tandoor" and e.type == "item" and e.data["item_id"] == item_id
+               for e in events)
+    card = chef.get(f"/kitchen/items/{item_id}/card?station=tandoor")
+    assert card.status_code == 200 and card.text == ""
+    assert "waiting for pickup" not in chef.get("/kitchen").text

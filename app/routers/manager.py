@@ -1,6 +1,7 @@
-"""Manager-only screens: audit log, menu, expenses, sales report. These may show cost."""
+"""Manager-only screens: audit log, menu, expenses, sales report, insights. These may show cost."""
 import csv
 import io
+import secrets
 from datetime import date
 from typing import Annotated
 
@@ -10,8 +11,8 @@ from starlette.background import BackgroundTask
 
 from app.auth import CurrentStaff, require_role
 from app.models import EXPENSE_CATEGORIES, STATIONS
-from app.services import ServiceError, audit, backups, expenses, menu, menu_admin, sales, staff_admin
-from app.web import Id, OptionalDate, OptionalId, flash, parse_rupees, publish, render, see_other
+from app.services import ServiceError, ai_chat, audit, backups, expenses, insights, menu, menu_admin, sales, staff_admin
+from app.web import Id, OptionalDate, OptionalId, flash, parse_rupees, partial, publish, render, see_other
 
 router = APIRouter()
 manager_only = require_role("manager")
@@ -187,3 +188,33 @@ def download_backup(staff: CurrentStaff = Depends(manager_only)):
     path, filename = backups.fresh_backup_for_download(staff.id)
     return FileResponse(path, filename=filename, media_type="application/vnd.sqlite3",
                         background=BackgroundTask(path.unlink, missing_ok=True))
+
+
+# ---------- insights + AI chat ----------
+
+def _conversation_id(request: Request) -> str:
+    """The chat's server-side memory is keyed by this id in the (signed) session."""
+    conv = request.session.get("ai_conv")
+    if not isinstance(conv, str):
+        conv = request.session["ai_conv"] = secrets.token_hex(12)
+    return conv
+
+
+@router.get("/insights")
+def insights_page(request: Request, preset: str | None = None, start: OptionalDate = None,
+                  end: OptionalDate = None, staff: CurrentStaff = Depends(manager_only)):
+    return render(request, "insights.html", staff, **insights.page(preset, start, end),
+                  ai_available=ai_chat.available(), suggestions=ai_chat.SUGGESTIONS,
+                  max_question=ai_chat.MAX_QUESTION_LEN)
+
+
+@router.post("/insights/ask")
+def insights_ask(request: Request, question: str = Form(""), staff: CurrentStaff = Depends(manager_only)):
+    turn = ai_chat.ask(question, _conversation_id(request), staff.id)
+    return partial(request, "_ai_turn.html", turn=turn)
+
+
+@router.post("/insights/new")
+def insights_new_conversation(request: Request, staff: CurrentStaff = Depends(manager_only)):
+    ai_chat.conversations.clear(_conversation_id(request))
+    return see_other("/insights")

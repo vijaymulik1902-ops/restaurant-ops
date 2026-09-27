@@ -18,3 +18,19 @@ def date_range(start: date, end: date) -> str:
     if start.year == end.year:
         return f"{start.day} {start:%b} – {end.day} {end:%b %Y}"
     return f"{start.day} {start:%b %Y} – {end.day} {end:%b %Y}"
+
+
+def whole_rupees(paise: int) -> str:
+    """Paise as whole rupees with Indian grouping, for sentences: 93910000 -> '₹9,39,100'."""
+    sign = "-" if paise < 0 else ""
+    digits = str(round(abs(paise) / 100))
+    if len(digits) > 3:
+        head, tail = digits[:-3], digits[-3:]
+        groups = []
+        while len(head) > 2:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            groups.insert(0, head)
+        digits = ",".join(groups) + "," + tail
+    return f"{sign}₹{digits}"

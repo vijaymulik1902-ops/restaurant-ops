@@ -8,6 +8,7 @@ from pathlib import Path
 _TMP = Path(tempfile.mkdtemp(prefix="restaurant-tests-"))
 os.environ["DB_PATH"] = str(_TMP / "test.db")
 os.environ["GST_PERCENT"] = "5"
+os.environ["GEMINI_API_KEY"] = ""  # never the real key in tests: no test can reach Google
 
 import bcrypt  # noqa: E402
 import pytest  # noqa: E402

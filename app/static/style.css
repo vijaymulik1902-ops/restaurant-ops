@@ -12,8 +12,8 @@
      --steel     #A8959A  muted rose-grey: neutral, billing, borders
      --paper     #F3E7D3  warm paper: tickets, bills, primary buttons (text #2B1418)
    Token names are unchanged from the previous theme, so templates didn't change.
-   Type: display = a condensed grotesque the device already has (no downloads):
-         Avenir Next Condensed (iOS/macOS), Roboto Condensed (Android), Bahnschrift (Windows).
+   Type: display = Barlow Condensed 700/800, bundled as woff2 (font-display: swap), with the
+         device's own condensed grotesque as fallback while it loads or if it fails.
          Body = system UI sans. Money and timers use tabular figures.
    Space: 4 / 8 / 12 / 16 / 24 / 32 px (--s1..--s6).
    Radius by hierarchy: hero table cards 14px, controls 10px, inputs 8px, pills 999px,
@@ -21,6 +21,29 @@
    Motion: transform/opacity only, 150-300 ms, only when something changed; none at all
    under prefers-reduced-motion.
    ========================================================================== */
+
+/* Barlow Condensed (SIL OFL 1.1, see /static/fonts/OFL.txt), bundled locally, no CDN.
+   Only the weights used: 700 (headings) and 800 (table numbers, figures, ticket stamps). */
+@font-face {
+  font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("/static/fonts/barlow-condensed-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("/static/fonts/barlow-condensed-700-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Barlow Condensed"; font-style: normal; font-weight: 800; font-display: swap;
+  src: url("/static/fonts/barlow-condensed-800-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Barlow Condensed"; font-style: normal; font-weight: 800; font-display: swap;
+  src: url("/static/fonts/barlow-condensed-800-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 :root {
   --ink: #2b1418;
@@ -55,7 +78,7 @@
   --steel-14: rgba(168, 149, 154, .14);
   --steel-50: rgba(168, 149, 154, .5);
 
-  --font-display: "Avenir Next Condensed", "Roboto Condensed", "sans-serif-condensed", "Bahnschrift",
+  --font-display: "Barlow Condensed", "Avenir Next Condensed", "Roboto Condensed", "sans-serif-condensed", "Bahnschrift",
                   "Arial Narrow", system-ui, sans-serif;
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
@@ -500,3 +523,37 @@ button.outline-danger { background: transparent; color: var(--chilli); border: 1
 .dish-admin .toggle-on, .dish-admin .toggle-off { width: auto; min-width: 8.5rem; }
 /* bill: the three payment modes always share one row */
 form.pay-grid { grid-template-columns: repeat(3, 1fr); }
+
+/* ---------- insights + AI chat ---------- */
+.insight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--s2); margin-bottom: var(--s5); }
+.insight { margin: 0; padding: var(--s3) var(--s4); background: var(--ink-2); border: 1px solid var(--line);
+           border-radius: var(--r-control); }
+.insight small { color: var(--muted); display: block; }
+.insight strong { display: block; font-family: var(--font-display); font-weight: 800; font-size: 1.7rem;
+                  color: var(--turmeric); font-variant-numeric: tabular-nums; line-height: 1.1; margin: 2px 0 var(--s1); }
+.insight p { margin: 0; }
+.ai-chat { background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-hero); padding: var(--s3) var(--s4); }
+.ai-chat h3 { margin: 0; }
+.ai-chips .chip-q { width: auto; margin: 0; min-height: 2.75rem; padding: .35rem .9rem; border-radius: 999px;
+                    background: var(--ink-3); border: 1px solid var(--line); color: var(--text); font-weight: 500; font-size: .92rem; }
+.ai-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s2); align-items: end; margin: var(--s3) 0 0; }
+.ai-form textarea { margin: 0; resize: vertical; }
+.ai-form button { width: auto; margin: 0; }
+.ai-loading { display: none; margin: var(--s2) 0 0; }
+.ai-loading.htmx-request { display: block; }
+.ai-turn { margin: var(--s3) 0 0; padding: var(--s3); background: var(--ink); border: 1px solid var(--line);
+           border-radius: var(--r-control); }
+.ai-q { margin: 0 0 var(--s2); color: var(--muted); }
+.ai-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-error { margin: 0; color: var(--chilli); font-weight: 600; }
+.ai-figures { margin-top: var(--s2); }
+.ai-figures summary { color: var(--muted); }
+.ai-figures .fig { margin-top: var(--s2); padding-top: var(--s2); border-top: 1px dashed var(--line); font-size: .88rem; }
+.ai-figures h4 { margin: 0 0 var(--s1); font-size: 1rem; }
+.fig-map { margin: 0; }
+.fig-map > div { display: grid; grid-template-columns: minmax(8rem, 40%) 1fr; gap: var(--s2); }
+.fig-map dt { color: var(--muted); font-weight: 400; }
+.fig-map dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fig-list { margin: 0; padding-left: 1.2rem; }
+.fig-list > li { margin-bottom: var(--s1); }
+@media (max-width: 600px) { .ai-form { grid-template-columns: 1fr; } }

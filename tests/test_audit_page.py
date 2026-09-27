@@ -57,6 +57,14 @@ def busy_audit(db, monkeypatch, tmp_path):
     kitchen.ready_item(item, "tandoor")
     kitchen.cancel_item(item, "Dropped while plating", manager)
     orders.cancel_order(opened["order_id"], "Guests left", manager)
+    # An AI chat question (Gemini mocked: no network in tests)
+    from app import config
+    from app.services import ai_chat
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(ai_chat, "_post", lambda model, payload, timeout: {
+        "candidates": [{"content": {"role": "model", "parts": [{"text": "Mocked answer."}]}}]})
+    ai_chat.ask("Which dishes should I promote?", "conv-audit", manager)
     return {"manager": manager, "rahul": rahul}
 
 

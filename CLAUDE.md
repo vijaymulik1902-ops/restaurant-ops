@@ -97,6 +97,8 @@ Rules that keep cost data private and separate from prices:
 - After each task: run `pytest -q` and fix failures before reporting done.
 - Run locally: `uvicorn app.main:app --reload` ; phones on same Wi-Fi: add `--host 0.0.0.0`.
 - Ask before adding any dependency.
+- Fonts: Barlow Condensed 700/800 (SIL OFL) is bundled in app/static/fonts as woff2 with its OFL.txt;
+  used for headings and table numbers via --font-display, system condensed fonts as fallback. No font CDN.
 - CSRF: every POST form includes `<input type="hidden" name="csrf_token" value="{{ csrf_token }}">`;
   HTMX sends it as X-CSRF-Token via hx-headers on <body>. The app-wide dependency returns 403 otherwise.
 - Path ids use `Id` from app.web (bounded int) so bad ids give a friendly message, never a 500.

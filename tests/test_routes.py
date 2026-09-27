@@ -189,7 +189,7 @@ def test_failed_kot_rerenders_with_picks_and_notes_preserved(db):
         f"qty_{naan}": "3", f"note_{naan}": "well done",
         f"qty_{dal}": "1", f"note_{dal}": "no garlic",
     })
-    assert resp.status_code == 422
+    assert resp.status_code == 200
     html = resp.text
     assert "Dal Tadka is not available" in html
     assert re.search(rf'name="qty_{naan}" value="3"', html)
@@ -209,7 +209,7 @@ def test_bad_kot_input_is_a_friendly_rerender_not_a_crash(db, data):
     url = f"/orders/{opened['order_id']}"
     c = login("waiter")
     resp = c.post(f"{url}/kot", data={"kot_id": form_field(c.get(url).text, "kot_id"), **data})
-    assert resp.status_code == 422 and 'class="flash flash-error"' in resp.text
+    assert resp.status_code == 200 and 'class="flash flash-error"' in resp.text
     assert _kot_count() == 0
 
 

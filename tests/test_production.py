@@ -292,12 +292,13 @@ def test_old_audit_log_is_rebuilt_to_allow_new_entities(tmp_path):
 
 def test_deployment_files():
     runtime = (ROOT / "requirements.txt").read_text().lower()
-    for dev_only in ("pytest", "locust", "httpx", "flask", "gevent"):
+    for dev_only in ("pytest", "locust", "flask", "gevent"):
         assert dev_only not in runtime, dev_only
-    for needed in ("fastapi==", "uvicorn==", "sqlalchemy==", "sse-starlette==", "bcrypt==", "jinja2=="):
+    for needed in ("fastapi==", "uvicorn==", "sqlalchemy==", "sse-starlette==", "bcrypt==", "jinja2==",
+                   "httpx=="):  # httpx: Gemini REST calls at runtime
         assert needed in runtime, needed
     dev = (ROOT / "requirements-dev.txt").read_text()
-    assert "-r requirements.txt" in dev and all(p in dev for p in ("pytest==", "httpx==", "locust=="))
+    assert "-r requirements.txt" in dev and all(p in dev for p in ("pytest==", "locust=="))
     render = (ROOT / "render.yaml").read_text()
     for expected in ("pip install -r requirements.txt", "--workers 1", "--proxy-headers", "--forwarded-allow-ips '*'",
                      "mountPath: /var/data", "DB_PATH", "/var/data/restaurant.db", "COOKIE_SECURE",

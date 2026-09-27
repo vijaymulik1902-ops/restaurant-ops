@@ -27,7 +27,7 @@ STATIONS = ("tandoor", "kitchen", "bar")
 PAYMENT_MODES = ("cash", "upi", "card")
 EXPENSE_CATEGORIES = ("ingredients", "salaries", "rent", "utilities", "equipment", "other")
 # Existing databases get new entries via app.migrations (SQLite cannot ALTER a CHECK constraint)
-AUDIT_ENTITIES = ("order", "order_item", "bill", "menu_item", "expense", "staff", "backup")
+AUDIT_ENTITIES = ("order", "order_item", "bill", "menu_item", "expense", "staff", "backup", "ai")
 
 
 def _in(col: str, values: tuple) -> str:

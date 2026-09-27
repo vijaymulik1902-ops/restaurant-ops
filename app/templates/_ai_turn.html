@@ -1,0 +1,29 @@
+{#- One question + answer. All text is autoescaped; "Figures used" comes from the server's
+    own function results, never from the model's text. -#}
+{% macro show(v) -%}
+  {%- if v is mapping -%}
+    <dl class="fig-map">{% for k, val in v.items() %}<div><dt>{{ k|replace('_', ' ') }}</dt><dd>{{ show(val) }}</dd></div>{% endfor %}</dl>
+  {%- elif v is iterable and v is not string -%}
+    <ol class="fig-list">{% for item in v %}<li>{{ show(item) }}</li>{% endfor %}</ol>
+  {%- elif v is none -%}—
+  {%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+<article class="ai-turn">
+  <p class="ai-q"><strong>You:</strong> {{ turn.question }}</p>
+  {% if turn.error %}
+  <p class="ai-error" role="alert">{{ turn.error }}</p>
+  {% else %}
+  <div class="ai-answer">{{ turn.answer }}</div>
+  {% endif %}
+  {% if turn.figures %}
+  <details class="ai-figures">
+    <summary>Figures used ({{ turn.figures|length|plural("function call") }})</summary>
+    {% for f in turn.figures %}
+    <section class="fig">
+      <h4>{{ f.name|replace('_', ' ') }} <small class="muted">{{ f.args.start }} to {{ f.args.end }}</small></h4>
+      {{ show(f.result) }}
+    </section>
+    {% endfor %}
+  </details>
+  {% endif %}
+</article>

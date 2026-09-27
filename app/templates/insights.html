@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Insights · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}insights{% endblock %}
+{% set labels = {'today': 'Today', 'yesterday': 'Yesterday', 'this_week': 'This week',
+                 'last_30_days': 'Last 30 days', 'this_month': 'This month', 'last_month': 'Last month',
+                 'custom': 'Custom range'} %}
+{% set span = "start=" ~ start.isoformat() ~ "&end=" ~ end.isoformat() %}
+{% block content %}
+<div class="bar"><h2>Insights <small>manager only</small></h2></div>
+<p class="range-label"><strong>{{ labels[preset] }}</strong> · {{ start|date_range(end) }}</p>
+<nav class="preset-grid" aria-label="Period">
+  {% for p in presets + ('custom',) %}
+  <a role="button" class="preset{% if preset == p %} active{% endif %}"
+     href="/insights?preset={{ p }}{% if p == 'custom' %}&{{ span }}{% endif %}"
+     {% if preset == p %}aria-current="page"{% endif %}>{{ labels[p] }}</a>
+  {% endfor %}
+</nav>
+{% if preset == 'custom' %}
+<form method="get" action="/insights" class="audit-filters custom-range">
+  <input type="hidden" name="preset" value="custom">
+  <label>From <input type="date" name="start" value="{{ start.isoformat() }}"></label>
+  <label>To <input type="date" name="end" value="{{ end.isoformat() }}"></label>
+  <button type="submit">Show</button>
+</form>
+{% endif %}
+
+<div class="insight-grid">
+  {% for c in cards %}
+  <article class="insight" id="insight-{{ c.key }}">
+    <small>{{ c.title }}</small>
+    <strong>{{ c.figure }}</strong>
+    <p>{{ c.sentence }}</p>
+  </article>
+  {% endfor %}
+</div>
+
+<section class="ai-chat" aria-label="Ask about your restaurant">
+  <div class="bar">
+    <h3>Ask about your restaurant</h3>
+    {% if ai_available %}
+    <form method="post" action="/insights/new" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="secondary small">New conversation</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if ai_available %}
+  <p class="muted">Answers use only this restaurant's figures (read-only). Every answer lists the figures it used.</p>
+  <div class="chips ai-chips">
+    {% for q in suggestions %}<button type="button" class="chip-q" data-question="{{ q }}">{{ q }}</button>{% endfor %}
+  </div>
+  <div id="chat-log" aria-live="polite"></div>
+  <form id="ai-form" hx-post="/insights/ask" hx-target="#chat-log" hx-swap="beforeend"
+        hx-indicator="#ai-loading" hx-disabled-elt="find button, find textarea" class="ai-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <textarea name="question" id="ai-question" rows="2" maxlength="{{ max_question }}" required
+              placeholder="e.g. Which dishes should I promote?"></textarea>
+    <button type="submit">Ask</button>
+  </form>
+  <p id="ai-loading" class="ai-loading muted" aria-live="polite">Thinking… reading your figures</p>
+  {% else %}
+  <div class="empty"><strong>AI chat isn't set up.</strong>Add GEMINI_API_KEY to .env and restart. The insight cards above still work.</div>
+  {% endif %}
+</section>
+{% endblock %}
