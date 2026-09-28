@@ -7,12 +7,12 @@ from app.web import NAV_ITEMS, nav_for
 from test_routes import ROLES, SCREENS, login
 
 PHONE = {
-    "waiter": ["Floor", "Orders", "Alerts", "Me"],
+    "waiter": ["Floor", "Orders", "Bookings", "Alerts", "Me"],
     "chef": ["Kitchen", "Summary", "Availability", "Me"],
-    "counter": ["Counter", "Floor", "Me"],
+    "counter": ["Counter", "Floor", "Bookings", "Me"],
     "manager": ["Home", "Floor", "Kitchen", "Reports", "More"],
 }
-MORE = ["Menu", "Staff", "Expenses", "Audit", "Day close", "Insights"]
+MORE = ["Bookings", "Menu", "Staff", "Expenses", "Audit", "Day close", "Insights"]
 LANDING = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "manager": "/home"}
 
 
@@ -36,7 +36,7 @@ def test_sidebar_groups_for_manager(db):
     _, html = _page("manager")
     side = html.split('<nav class="sidebar"')[1].split("</nav>")[0]
     assert re.findall(r'<div class="group">([^<]+)</div>', side) == ["Operations", "Reports", "Admin"]
-    assert _labels(side) == ["Home", "Floor", "Kitchen", "Counter", "Reports", "Day close", "Insights",
+    assert _labels(side) == ["Home", "Floor", "Kitchen", "Counter", "Bookings", "Reports", "Day close", "Insights",
                              "Menu", "Staff", "Expenses", "Audit", "Collapse"]
 
 

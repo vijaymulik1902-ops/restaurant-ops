@@ -26,8 +26,9 @@ ITEM_STATUSES = ("pending", "preparing", "ready", "served", "cancelled")
 STATIONS = ("tandoor", "kitchen", "bar")
 PAYMENT_MODES = ("cash", "upi", "card")
 EXPENSE_CATEGORIES = ("ingredients", "salaries", "rent", "utilities", "equipment", "other")
+BOOKING_STATUSES = ("booked", "seated", "completed", "cancelled", "no_show")
 # Existing databases get new entries via app.migrations (SQLite cannot ALTER a CHECK constraint)
-AUDIT_ENTITIES = ("order", "order_item", "bill", "menu_item", "expense", "staff", "backup", "ai")
+AUDIT_ENTITIES = ("order", "order_item", "bill", "menu_item", "expense", "staff", "backup", "ai", "booking")
 
 
 def _in(col: str, values: tuple) -> str:
@@ -217,6 +218,35 @@ class Expense(Base):
     note: Mapped[str | None] = mapped_column(String(160))
     created_by: Mapped[int] = mapped_column(ForeignKey("staff.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class Booking(Base):
+    """A table reservation. The floor "hold" (reserved soon) is derived from these rows at read
+    time, never stored in DiningTable.status. Created by create_all() on startup if missing."""
+
+    __tablename__ = "bookings"
+    __table_args__ = (
+        CheckConstraint(_in("status", BOOKING_STATUSES), name="ck_booking_status"),
+        CheckConstraint("party_size BETWEEN 1 AND 50", name="ck_booking_party"),
+        CheckConstraint("duration_min BETWEEN 30 AND 300", name="ck_booking_duration"),
+        Index("ix_bookings_starts_at", "starts_at"),
+        Index("ix_bookings_table_starts", "table_id", "starts_at"),
+        Index("ix_bookings_order", "order_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    guest_name: Mapped[str] = mapped_column(String(60))
+    phone: Mapped[str | None] = mapped_column(String(15))  # counter/manager only, never in events/audit/AI
+    party_size: Mapped[int] = mapped_column(Integer)
+    starts_at: Mapped[datetime] = mapped_column(DateTime)
+    duration_min: Mapped[int] = mapped_column(Integer, default=90)
+    table_id: Mapped[int | None] = mapped_column(ForeignKey("dining_tables.id"))
+    status: Mapped[str] = mapped_column(String(10), default="booked")
+    note: Mapped[str | None] = mapped_column(String(120))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"))  # set when seated
+    created_by: Mapped[int] = mapped_column(ForeignKey("staff.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
 class AuditLog(Base):

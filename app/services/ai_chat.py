@@ -1,7 +1,7 @@
 """AI chat on /insights: MANAGER ONLY. Google Gemini REST API with function calling.
 
 Safety model:
-- The model can only call the six read-only functions in ai_tools (validated arguments,
+- The model can only call the seven read-only functions in ai_tools (validated arguments,
   aggregated figures only). It never writes SQL and never sees raw rows, notes, PINs or staff details.
 - At most MAX_CALLS function calls per question; then it must answer from what it has.
 - "Figures used" shown to the manager comes from the server's own function results, not model text.
@@ -369,6 +369,11 @@ def summarize(figures: list[dict]) -> list[str]:
             if times:
                 slow = max(times, key=times.get)
                 lines.append(f"{span}: slowest station {slow} ({times[slow]} min from order to ready).")
+        elif f["name"] == "bookings_summary" and r["bookings"]:
+            rate = r["no_show_rate_percent"]
+            lines.append(f"{span}: {r['bookings']} bookings, {r['no_shows']} no-shows"
+                         + (f" ({rate}%)" if rate is not None else "")
+                         + f"; {r['visits_from_bookings']} table visits from bookings, {r['walk_ins']} walk-ins.")
     if len(sales) >= 2:  # a comparison between the two most recent ranges asked for
         a, b = sales[-2]["result"], sales[-1]["result"]
         if a["net_sales_rupees"]:

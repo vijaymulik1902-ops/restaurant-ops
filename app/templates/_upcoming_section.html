@@ -1,0 +1,10 @@
+{#- "Upcoming today" block for the Counter screen and Manager Home. Live: booking events and a
+    once-a-minute refresh (a booking turns late 15 minutes after its time). -#}
+<section class="card upcoming" aria-labelledby="upcoming-title">
+  <div class="bar"><h3 id="upcoming-title">Upcoming today <small class="muted">next 3 hours</small></h3>
+    <a href="/bookings" class="small-link">All bookings</a></div>
+  <div id="upcoming" data-bookings data-list-url="/bookings/upcoming"
+       hx-get="/bookings/upcoming" hx-trigger="load, every 60s" hx-swap="innerHTML">
+    <p class="muted upcoming-empty">Loading bookings…</p>
+  </div>
+</section>

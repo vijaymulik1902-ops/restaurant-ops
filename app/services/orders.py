@@ -8,6 +8,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.db import now, read_session, write_session
 from app.models import Bill, DiningTable, Kot, MenuItem, Order, OrderItem, Staff
 from app.services import Event, ServiceError, audit, business_day_bounds, business_day_of, clean_reason
+from app.services.bookings import cancel_for_order
 from app.services.kitchen import can_cancel_item
 from app.services.menu import list_menu
 from app.services.tables import get_active_staff, table_events
@@ -241,6 +242,7 @@ def cancel_order(order_id: int, reason: str, by_staff_id: int,
         s.flush()
 
         events.extend(table_events(table, None))
+        events.extend(cancel_for_order(s, order.id, ts, staff.id))  # seated booking -> cancelled, audited
         result = {"order_id": order.id, "table_number": table.number, "status": order.status}
     return result, events
 

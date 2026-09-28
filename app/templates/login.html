@@ -2,31 +2,47 @@
 {% block title %}Log in · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}login{% endblock %}
 {% block content %}
+{#- Normal document flow, top to bottom: name, hint, badge groups, PIN section.
+    The PIN section starts hidden and app.js reveals it when a badge is chosen;
+    without JavaScript the <noscript> rule keeps it visible below the grid. -#}
+<noscript><style>#pin-panel[hidden] { display: block !important; }</style></noscript>
 <div class="login">
-  <div class="login-head">
+  <header class="login-head">
     <h1>{{ RESTAURANT_NAME }}</h1>
-    {% if demo_mode() %}<p><span class="badge demo">Demo mode</span> Every PIN is 1111.</p>{% endif %}
-  </div>
+    {% if demo_mode() %}<p class="demo-note"><span class="badge demo">Demo mode</span> Every PIN is 1111.</p>{% endif %}
+    <p class="login-hint">Tap your badge, then enter your PIN.</p>
+  </header>
   {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
   <form method="post" action="/login" id="login-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <fieldset class="staff-pick">
-      <legend>Who are you?</legend>
+      <legend class="visually-hidden">Who are you?</legend>
+      {% set groups = {'manager': 'Management', 'counter': 'Management', 'chef': 'Kitchen', 'waiter': 'Floor'} %}
+      {% set ns = namespace(current=none) %}
       {% for s in staff_list %}
-      <label class="pick role-{{ s.role }}">
-        <input type="radio" name="name" value="{{ s.name }}" data-pin-length="{{ s.pin_length }}" required {% if s.name == selected %}checked{% endif %}>
-        <span class="badge-btn">
-          <span class="initials" aria-hidden="true">{{ s.name|initials }}</span>
-          <span class="who-name">{{ s.name }}</span>
-          <span class="who-role">{{ role_label(s.role, s.station, s.section) }}</span>
-        </span>
-      </label>
+      {% set g = groups.get(s.role, 'Other') %}
+      {% if g != ns.current %}
+      {% if ns.current is not none %}</div></div>{% endif %}
+      {% set ns.current = g %}
+      <div class="pick-group">
+        <h2 class="pick-group-title">{{ g }}</h2>
+        <div class="pick-grid">
+      {% endif %}
+          <label class="pick role-{{ s.role }}">
+            <input type="radio" name="name" value="{{ s.name }}" data-pin-length="{{ s.pin_length }}" required {% if s.name == selected %}checked{% endif %}>
+            <span class="badge-btn">
+              <span class="initials" aria-hidden="true">{{ s.name|initials }}</span>
+              <span class="who-name">{{ s.name }}</span>
+              <span class="who-role">{{ role_label(s.role, s.station, s.section) }}</span>
+            </span>
+          </label>
+      {% if loop.last %}</div></div>{% endif %}
       {% endfor %}
     </fieldset>
 
-    <div class="pin-panel{% if not selected %} waiting{% endif %}" id="pin-panel">
-      <p class="for-who" id="for-who">{% if selected %}PIN for {{ selected }}{% else %}Tap your badge, then enter your PIN{% endif %}</p>
-      <label for="pin" class="muted">PIN</label>
+    <section class="pin-panel" id="pin-panel" aria-labelledby="for-who" {% if not selected %}hidden{% endif %}>
+      <h2 class="for-who" id="for-who">{% if selected %}PIN for {{ selected }}{% else %}Enter your PIN{% endif %}</h2>
+      <label for="pin">PIN</label>
       <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
              autocomplete="off" required placeholder="••••">
       <div class="keypad" aria-label="PIN keypad">
@@ -38,7 +54,7 @@
         <button type="button" data-key="back" class="secondary" aria-label="Delete last digit">⌫</button>
       </div>
       <button type="submit" class="big">Log in</button>
-    </div>
+    </section>
   </form>
 </div>
 {% endblock %}

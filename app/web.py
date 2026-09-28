@@ -1,5 +1,5 @@
 """Shared helpers for routers: templates, flash messages, redirects, event publishing."""
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, DecimalException
 from pathlib import Path
 from typing import Annotated
@@ -22,7 +22,10 @@ ROLE_HOME = {"waiter": "/floor", "chef": "/kitchen", "counter": "/counter", "man
 FLOOR_ROLES = ("waiter", "counter", "manager")
 KITCHEN_ROLES = ("chef", "manager")
 COUNTER_ROLES = ("counter", "manager")
+BOOKING_VIEW_ROLES = ("waiter", "counter", "manager")  # waiters: today's bookings, read-only, no phones
+BOOKING_EDIT_ROLES = ("counter", "manager")
 CANCEL_REASONS = ("Customer changed mind", "Wrong item entered", "Out of stock")
+BOOKING_CANCEL_REASONS = ("Guest cancelled", "Plans changed", "Booked by mistake")
 
 # ---------- navigation (one definition drives the phone tab bar, the More sheet and the sidebar) ----------
 # Every link points at a route the role can already open (see CLAUDE.md access matrix); items
@@ -43,21 +46,22 @@ NAV_ITEMS = {
     "staff": {"label": "Staff", "href": "/staff", "icon": "users"},
     "expenses": {"label": "Expenses", "href": "/expenses", "icon": "wallet"},
     "audit": {"label": "Audit", "href": "/audit", "icon": "shield"},
+    "bookings": {"label": "Bookings", "href": "/bookings", "icon": "bookings"},
     "me": {"label": "Me", "sheet": "me", "icon": "user"},
     "more": {"label": "More", "sheet": "more", "icon": "dots"},
 }
 PHONE_TABS = {
-    "waiter": ["floor", "orders", "alerts", "me"],
+    "waiter": ["floor", "orders", "bookings", "alerts", "me"],
     "chef": ["kitchen", "summary", "availability", "me"],
-    "counter": ["counter", "floor", "me"],
+    "counter": ["counter", "floor", "bookings", "me"],
     "manager": ["home", "floor", "kitchen", "reports", "more"],
 }
-MORE_SHEET = ["menu", "staff", "expenses", "audit", "dayclose", "insights"]
+MORE_SHEET = ["bookings", "menu", "staff", "expenses", "audit", "dayclose", "insights"]
 SIDEBAR = {
-    "waiter": [("Operations", ["floor", "orders", "alerts"])],
+    "waiter": [("Operations", ["floor", "orders", "bookings", "alerts"])],
     "chef": [("Kitchen", ["kitchen", "summary", "availability"])],
-    "counter": [("Operations", ["counter", "floor"])],
-    "manager": [("Operations", ["home", "floor", "kitchen", "counter"]),
+    "counter": [("Operations", ["counter", "floor", "bookings"])],
+    "manager": [("Operations", ["home", "floor", "kitchen", "counter", "bookings"]),
                 ("Reports", ["reports", "dayclose", "insights"]),
                 ("Admin", ["menu", "staff", "expenses", "audit"])],
 }
@@ -111,6 +115,13 @@ def rupees(paise: int | None) -> str:
     return f"{sign}₹{digits}.{frac:02d}"
 
 
+def business_datetime(day: date, at: time) -> datetime:
+    """A date + clock time from a form, read as a BUSINESS day: 00:30 on the 27th's form
+    means the night of the 27th (calendar 28th), like every report in the app."""
+    ts = datetime.combine(day, at)
+    return ts + timedelta(days=1) if at.hour < config.BUSINESS_DAY_START_HOUR else ts
+
+
 def table_alert_in(t: dict) -> int | None:
     """Seconds until a floor card should turn red (<= 0: red now; None: never)."""
     deadlines = []
@@ -134,6 +145,10 @@ templates.env.globals.update(
     CANCEL_REASONS=CANCEL_REASONS,
     demo_mode=lambda: config.DEMO_MODE,  # read at render time (tests and .env can switch it)
     nav_for=nav_for,
+    BOOKING_EDIT_ROLES=BOOKING_EDIT_ROLES,
+    BOOKING_CANCEL_REASONS=BOOKING_CANCEL_REASONS,
+    DURATION_CHOICES=(30, 45, 60, 90, 120, 150, 180, 240, 300),
+    timedelta=timedelta,
     # Chart.js is vendored at app/static/chart.umd.min.js (no CDN); pages fall back to tables without it
     CHART_JS_AVAILABLE=(Path(__file__).resolve().parent / "static" / "chart.umd.min.js").is_file(),
 )

@@ -1,0 +1,31 @@
+{#- Booking form fields, shared by the New booking sheet and the edit page.
+    `b` is the booking being edited (or none); `fid` makes element ids unique on the page. -#}
+<div class="booking-fields">
+  <label>Guest name
+    <input type="text" name="guest_name" required maxlength="60" autocomplete="off" value="{{ b.guest_name if b else '' }}"></label>
+  <label>Phone <small class="muted">(optional)</small>
+    <input type="tel" name="phone" inputmode="tel" maxlength="20" pattern="[+0-9 \-]*" autocomplete="off"
+           value="{{ (b.phone or '') if b else '' }}" placeholder="+91 98…"></label>
+  <label>Party size
+    <input type="number" name="party_size" min="1" max="50" required inputmode="numeric" value="{{ b.party_size if b else 2 }}"></label>
+  <label>Date
+    <input type="date" name="day" required value="{{ day.isoformat() }}"></label>
+  <label>Time
+    <input type="time" name="at" required step="300" value="{{ b.starts_at.strftime('%H:%M') if b else default_time }}"></label>
+  <label>Duration
+    <select name="duration_min">
+      {% set current_duration = b.duration_min if b else duration_default %}
+      {% for m in DURATION_CHOICES %}<option value="{{ m }}" {% if m == current_duration %}selected{% endif %}>{{ m // 60 }}h{% if m % 60 %} {{ m % 60 }}m{% endif %}</option>{% endfor %}
+      {% if current_duration not in DURATION_CHOICES %}<option value="{{ current_duration }}" selected>{{ current_duration }} min</option>{% endif %}
+    </select></label>
+  <label class="span-2">Note <small class="muted">(optional)</small>
+    <input type="text" name="note" maxlength="113" autocomplete="off" value="{{ (b.note or '') if b else '' }}"
+           placeholder="Birthday, high chair, window seat…"></label>
+  {% if b %}<input type="hidden" name="booking_id" value="{{ b.booking_id }}">{% endif %}
+  <div class="span-2 suggest-box" id="suggest-{{ fid }}" hx-get="/bookings/suggest"
+       hx-trigger="load, change from:closest form" hx-include="closest form" hx-sync="this:replace">
+    {#- replaced by the free-table list on load; carries the current table so it stays selected -#}
+    <input type="hidden" name="table_id" value="{{ (b.table_id or '') if b else '' }}">
+    <label>Table <select disabled><option>Finding free tables…</option></select></label>
+  </div>
+</div>

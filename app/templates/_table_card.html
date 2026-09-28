@@ -8,22 +8,29 @@
 {%- else -%}
   {%- set href = '/orders/%d' % t.order_id -%}
 {%- endif -%}
+{%- set hold = t.hold if t.status == 'available' else none -%}
 <a id="table-{{ t.table_id }}" href="{{ href }}"
-   class="tcard st-{{ t.status }}{% if alert_in is not none and alert_in <= 0 %} late{% endif %}"
+   class="tcard st-{{ t.status }}{% if alert_in is not none and alert_in <= 0 %} late{% endif %}{% if hold %} held{% if hold.late %} held-late{% endif %}{% endif %}"
    data-status="{{ t.status }}"
    data-section="{{ t.section }}"
    data-card-url="/floor/tables/{{ t.table_id }}/card?view={{ view }}"
-   {% if alert_in is not none %}data-late-in="{{ alert_in }}"{% endif %}>
+   {% if alert_in is not none %}data-late-in="{{ alert_in }}"{% endif %}
+   {% if t.refresh_in %}data-refresh-in="{{ t.refresh_in }}"{% endif %}>
   <span class="tnum">{{ t.number }}</span>
   <span class="tmeta">
     {% if t.guest_count %}{{ t.guest_count }}/{{ t.capacity }}{% else %}{{ t.capacity|plural("seat") }}{% endif %}
     {% if view == 'counter' %}· {{ t.section }}{% endif %}
   </span>
   <span class="tstatus">
-    {%- if t.status == 'occupied' and not t.has_kot %}No order yet
+    {%- if hold %}{% if hold.late %}Late booking{% else %}Reserved{% endif %}
+    {%- elif t.status == 'occupied' and not t.has_kot %}No order yet
     {%- elif t.ready_waiting_seconds is not none %}Food ready
     {%- else %}{{ t.status|capitalize }}{% endif -%}
   </span>
+  {% if t.hold %}
+  <span class="thold">{{ t.hold.starts_at.strftime('%H:%M') }} · {{ t.hold.guest_name }} · {{ t.hold.party_size }}</span>
+  {% if hold and staff and staff.role in BOOKING_EDIT_ROLES %}<span class="arrive-pill">Guest arrived</span>{% endif %}
+  {% endif %}
   {% if t.status != 'available' %}
   <span class="timer" data-age="{{ t.seconds_in_status }}">{{ t.minutes_in_status }}m</span>
   {% if t.waiter_name %}<span class="twaiter">{{ t.waiter_name }}</span>{% endif %}

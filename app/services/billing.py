@@ -8,6 +8,7 @@ from app.config import GST_PERCENT
 from app.db import now, read_session, write_session
 from app.models import PAYMENT_MODES, Bill, DiningTable, Order, OrderItem, Staff
 from app.services import Event, ServiceError, audit
+from app.services.bookings import complete_for_order
 from app.services.orders import check_version
 from app.text import plural
 from app.services.tables import get_active_staff, table_events
@@ -147,7 +148,7 @@ def pay_bill(bill_id: int, payment_mode: str, by_staff_id: int) -> tuple[dict, l
                      new={"paid": True, "bill_no": bill.bill_no, "payment_mode": payment_mode,
                           "total_paise": bill.total_paise})
         result = _bill_result(bill, order, table)
-        events = _bill_events(result, table, order)
+        events = _bill_events(result, table, order) + complete_for_order(s, order.id, ts)  # booking -> completed
     return result, events
 
 

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Booking · {{ b.guest_name }} · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}booking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h2>{{ b.guest_name }} <small>{{ b.party_size|plural("guest") }}</small></h2>
+    <p class="muted sub">{{ b.starts_at.strftime('%a %d %b · %H:%M') }}–{{ b.ends_at.strftime('%H:%M') }} · table {{ b.table_number or '—' }}</p></div>
+  <span class="badge bstat st-{{ b.status }}{% if b.late %} late{% endif %}">{% if b.late %}late{% else %}{{ b.status|replace('_', '-') }}{% endif %}</span>
+</div>
+
+{% if b.status == 'booked' %}
+<section class="card booking-actions">
+  {% if b.can_seat %}
+  <form method="post" action="/bookings/{{ b.booking_id }}/seat" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="go big">Guest arrived: seat at table {{ b.table_number }}</button>
+  </form>
+  {% endif %}
+  {% if staff.role == 'manager' %}
+    {% if b.can_no_show %}
+    <form method="post" action="/bookings/{{ b.booking_id }}/no-show" data-once
+          data-confirm="Mark {{ b.guest_name }} as a no-show? The table is released.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="outline-danger big">Mark no-show</button>
+    </form>
+    {% else %}
+    <p class="muted">No-show can be marked from {{ b.no_show_from.strftime('%H:%M') }}.</p>
+    {% endif %}
+  {% endif %}
+  {% include "_booking_cancel.html" %}
+</section>
+
+<h3 class="section-title">Change booking</h3>
+<form method="post" action="/bookings/{{ b.booking_id }}" data-once class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% set fid = "edit" %}
+  {% include "_booking_fields.html" %}
+  <button type="submit" class="big">Save changes</button>
+</form>
+{% else %}
+<section class="card">
+  <dl class="kv-list">
+    <dt>Phone</dt><dd>{% if b.phone %}<a href="tel:{{ b.phone }}">{{ b.phone }}</a>{% else %}—{% endif %}</dd>
+    <dt>Note</dt><dd>{{ b.note or '—' }}</dd>
+    {% if b.order_id %}<dt>Order</dt><dd><a href="/orders/{{ b.order_id }}">Open the order</a></dd>{% endif %}
+  </dl>
+  <p class="muted">This booking is {{ b.status|replace('_', '-') }} and can no longer be changed.</p>
+</section>
+{% endif %}
+<p><a href="/bookings?day={{ day.isoformat() }}" role="button" class="secondary outline big">Back to bookings</a></p>
+{% endblock %}

@@ -17,14 +17,22 @@ from sqlalchemy import func, select
 from app.clock_override import override_now
 from app.db import now as real_now
 from app.db import read_session
-from app.models import DiningTable, MenuItem, Order, Staff
-from app.services import billing, business_day_of, expenses, kitchen, orders, tables
+from app.models import Booking, DiningTable, MenuItem, Order, Staff
+from app.services import ServiceError, billing, bookings, business_day_of, expenses, kitchen, orders, tables
 from app.services import sales
 
 CANCEL_REASONS = ("Customer changed mind", "Wrong item entered", "Out of stock")
 LATE_CANCEL_REASONS = ("Dropped while plating", "Burnt, remade not needed", "Guest left early")
 PAYMENT_WEIGHTS = {"upi": 55, "cash": 30, "card": 15}
 PREP_MINUTES = {"tandoor": (6, 12), "kitchen": (10, 20), "bar": (2, 6)}
+
+# Weekend dinners: about a quarter of the tables are booked ahead; ~8% of bookings don't show.
+# No-shows are chosen deterministically (evenly spaced), at least 3 once there are 24+ bookings,
+# so a 30-day demo always has a non-zero no-show insight.
+BOOKED_SHARE, NO_SHOW_RATE, MIN_NO_SHOWS = 0.25, 0.08, 3
+GUEST_NAMES = ("Aarav Mehta", "Priya Nair", "Rohit Kulkarni", "Ananya Iyer", "Vikram Joshi", "Sana Shaikh",
+               "Karan Malhotra", "Neha Deshpande", "Arjun Rao", "Meera Pillai", "Farhan Qureshi", "Isha Patil",
+               "Dev Sharma", "Kavya Menon", "Nikhil Gupta", "Tara Bhosale")
 
 # Volume per table per service (visits); weekends are ~40% busier
 LUNCH_TURNS, DINNER_TURNS, WEEKEND_FACTOR = 0.5, 0.9, 1.4
@@ -76,7 +84,9 @@ class _Sim:
     seq: int = 0
     stats: dict = field(default_factory=lambda: {"visits": 0, "turned_away": 0, "kots": 0, "items": 0,
                                                  "cancelled_items": 0, "discounts": 0, "big_discounts": 0,
-                                                 "late_night": 0})
+                                                 "late_night": 0, "bookings": 0, "no_shows": 0,
+                                                 "booking_full": 0, "booking_gave_up": 0})
+    section_of: dict = field(default_factory=dict)
     cogs_since_purchase: int = 0
 
     # ---- scheduling
@@ -95,17 +105,26 @@ class _Sim:
 
     # ---- a table visit, step by step
     def seat(self, guests: int, late_night: bool = False) -> None:
+        """A walk-in: the waiter tries free tables (fitting ones first). Tables held for a
+        booking refuse walk-ins, exactly as on the live floor."""
         free = [t for t in self.table_rows if t.id not in self.busy]
-        if not free:
-            self.stats["turned_away"] += 1
-            return
         fitting = [t for t in free if t.capacity >= guests] or free
-        table = self.rng.choice(fitting)
-        v = _Visit(table_id=table.id, section=table.section, guests=guests, late_night=late_night,
-                   waiter_id=self.waiters_by_section.get(table.section, self.any_waiter))
-        opened, _ = tables.open_table(table.id, v.waiter_id, guests)
-        v.order_id = opened["order_id"]
-        self.busy.add(table.id)
+        self.rng.shuffle(fitting)
+        for table in fitting:
+            waiter_id = self.waiters_by_section.get(table.section, self.any_waiter)
+            try:
+                opened, _ = tables.open_table(table.id, waiter_id, guests)
+            except ServiceError:
+                continue  # reserved soon: try another table
+            self._visit(table.id, table.section, waiter_id, guests, opened["order_id"], late_night)
+            return
+        self.stats["turned_away"] += 1
+
+    def _visit(self, table_id: int, section: str, waiter_id: int, guests: int, order_id: int,
+               late_night: bool = False) -> None:
+        v = _Visit(table_id=table_id, section=section, guests=guests, late_night=late_night,
+                   waiter_id=waiter_id, order_id=order_id)
+        self.busy.add(table_id)
         self.stats["visits"] += 1
         self.stats["late_night"] += late_night
         v.kots_left = 2 if self.rng.random() < 0.5 else 1
@@ -113,6 +132,48 @@ class _Sim:
         self.at(now + self.minutes(3, 8), self.send_kot, v, True)
         if v.kots_left == 2:
             self.at(now + self.minutes(22, 38), self.send_kot, v, False)
+
+    # ---- bookings (weekend dinners)
+    def book(self, party: int, starts_at: datetime, no_show: bool) -> None:
+        """The counter takes a phone booking in the morning for tonight (auto-assigned table)."""
+        booking_id = self.book_only(party, starts_at)
+        if booking_id is None:
+            return
+        if no_show:
+            self.at(starts_at + self.minutes(16, 30), self.no_show, booking_id)
+        else:
+            self.at(starts_at + self.minutes(-8, 12), self.arrive, booking_id, 0)
+
+    def arrive(self, booking_id: int, tries: int) -> None:
+        try:
+            seated, _ = bookings.seat_booking(booking_id, self.counter_id)
+        except ServiceError:  # walk-ins still at the table: wait a little, then give up
+            if tries < 6:
+                self.at(self.clock.current + timedelta(minutes=5), self.arrive, booking_id, tries + 1)
+            else:
+                bookings.cancel_booking(booking_id, "Table not ready, guests left", self.counter_id)
+                self.stats["booking_gave_up"] += 1
+            return
+        b = bookings.get_booking(booking_id, include_phone=False)
+        section = self.section_of[b["table_id"]]
+        waiter_id = self.waiters_by_section.get(section, self.any_waiter)
+        self._visit(b["table_id"], section, waiter_id, b["party_size"], seated["order_id"])
+
+    def book_only(self, party: int, starts_at: datetime) -> int | None:
+        """Create a booking with a made-up demo phone number; None if no table fits."""
+        phone = "+9198" + "".join(str(self.rng.randint(0, 9)) for _ in range(8))
+        try:
+            made, _ = bookings.create_booking(self.rng.choice(GUEST_NAMES), phone, party, starts_at, 90, None,
+                                              None, self.counter_id)
+        except ServiceError:
+            self.stats["booking_full"] += 1
+            return None
+        self.stats["bookings"] += 1
+        return made["booking_id"]
+
+    def no_show(self, booking_id: int) -> None:
+        bookings.mark_no_show(booking_id, self.manager_id)
+        self.stats["no_shows"] += 1
 
     def _pick(self, category: str, n: int) -> list[MenuItem]:
         dishes = self.dishes_by_category.get(category) or []
@@ -229,7 +290,8 @@ def _at(day: date, hours: float) -> datetime:
 
 
 def generate_history(days: int, seed_value: int = 42, today: date | None = None) -> dict:
-    """Simulate `days` past business days (ending yesterday). Requires a restaurant with no orders yet."""
+    """Simulate `days` past business days (ending yesterday). Requires a restaurant with no orders yet.
+    Bookings for today come from add_demo_bookings() (`seed --demo-bookings`), not from here."""
     if days < 1:
         raise HistoryError("--history must be at least 1")
     rng = random.Random(seed_value)
@@ -259,7 +321,10 @@ def generate_history(days: int, seed_value: int = 42, today: date | None = None)
         any_waiter=waiters[0].id, counter_id=counters[0], manager_id=managers[0],
         dishes_by_category=by_cat, weights={d.id: rng.uniform(0.4, 3.0) for d in dishes},
         cost_of={d.name: d.cost_paise for d in dishes},
+        section_of={t.id: t.section for t in table_rows},
     )
+    max_capacity = max(t.capacity for t in table_rows)
+    planned: list[tuple[datetime, int, datetime]] = []  # weekend bookings: (taken at, party, starts at)
 
     n_tables = len(table_rows)
     late_days = set(rng.sample(range(days), k=min(days, 2 if days >= 5 else 1)))
@@ -272,8 +337,18 @@ def generate_history(days: int, seed_value: int = 42, today: date | None = None)
             sim.at(_at(day, rng.triangular(12.0, 14.75, 13.0)), sim.seat, rng.randint(2, 4))
         for _ in range(dinner):  # 19:00-22:00 seating (out by ~23:30), busiest around 20:30
             sim.at(_at(day, rng.triangular(19.0, 22.0, 20.5)), sim.seat, rng.randint(2, 4))
+        if day.weekday() >= 5:  # weekend dinner bookings, taken at 11:00 that morning
+            for _ in range(round(n_tables * BOOKED_SHARE)):
+                start = _at(day, rng.triangular(19.0, 21.5, 20.0))
+                start = start.replace(minute=start.minute - start.minute % 15)
+                planned.append((_at(day, 11) + timedelta(minutes=rng.randint(0, 60)),
+                                min(rng.randint(2, 6), max_capacity), start))
         if i in late_days:  # a late table that pays after midnight (same business day)
             sim.at(_at(day, 23.5) + timedelta(minutes=rng.randint(0, 10)), sim.seat, rng.randint(2, 4), True)
+
+    no_shows = _no_show_picks(len(planned))
+    for i, (taken_at, party, start) in enumerate(planned):
+        sim.at(taken_at, sim.book, party, start, i in no_shows)
 
     clock = sim.clock
     with override_now(clock):
@@ -303,6 +378,57 @@ def generate_history(days: int, seed_value: int = 42, today: date | None = None)
             "totals": summary["totals"]}
 
 
+def _no_show_picks(total: int) -> set[int]:
+    """Which of `total` planned bookings don't show: ~8%, evenly spaced (deterministic),
+    at least MIN_NO_SHOWS once there are 8 x MIN_NO_SHOWS bookings."""
+    k = max(round(total * NO_SHOW_RATE), min(MIN_NO_SHOWS, total // 8))
+    return {int((j + 0.5) * total / k) for j in range(k)} if k else set()
+
+
+# ---- `seed --demo-bookings`: today's reservations for a live demo
+DEMO_TAG = bookings.DEMO_TAG  # hidden marker; the service strips it from every display
+# (minutes from now, party, guest, note): Reserved hold now, later tonight, a birthday, and a late one
+DEMO_PLAN = ((30, 2, "Rhea Kapoor", ""), (120, 4, "Imran Shaikh", ""), (240, 6, "Mehta family", "birthday"),
+             (-20, 4, "Joshi party", ""))
+
+
+def add_demo_bookings() -> list[str]:
+    """Book tables for TODAY relative to the current time, through the real service. Adds to the
+    existing database, never resets it. Idempotent: a guest from DEMO_PLAN that already has a
+    [demo]-tagged booking in the next/last 12 hours is skipped. Returns one line per booking."""
+    current = real_now().replace(second=0, microsecond=0)
+    window = (current - timedelta(hours=12), current + timedelta(hours=12))
+    with read_session() as s:
+        staff_id = s.scalar(select(Staff.id).where(Staff.role.in_(("counter", "manager")), Staff.active.is_(True))
+                            .order_by(Staff.role.desc(), Staff.id))  # the counter if there is one
+        existing = set(s.scalars(select(Booking.guest_name).where(
+            Booking.note.contains(DEMO_TAG), Booking.starts_at >= window[0], Booking.starts_at <= window[1])))
+    if staff_id is None:
+        raise HistoryError("Seed staff first (python -m app.seed)")
+    free_now = {t["table_id"] for t in tables.list_tables() if t["status"] == "available" and not t["hold"]}
+    lines, clock = [], _Clock()
+    for minutes, party, guest, note in DEMO_PLAN:
+        start = current + timedelta(minutes=minutes)
+        if guest in existing:
+            lines.append(f"  {guest}: already booked, skipped")
+            continue
+        options = bookings.suggest_tables(start, bookings.DEFAULT_DURATION, party)
+        table = next((t for t in options if t["table_id"] in free_now), options[0] if options else None)
+        if table is None:
+            lines.append(f"  {guest}: no free table fits {party} at {start:%H:%M}, skipped")
+            continue
+        # a booking that started 20 minutes ago was taken earlier in the day: create it "then";
+        # the others are created now
+        clock.current = current if minutes >= 0 else start - timedelta(hours=2)
+        with override_now(clock):
+            made, _ = bookings.create_booking(guest, None, party, start, bookings.DEFAULT_DURATION, table["table_id"],
+                                              note or None, staff_id, demo=True)
+        free_now.discard(table["table_id"])
+        when = "started 20 min ago, shows as late" if minutes < 0 else f"in {minutes} min"
+        lines.append(f"  {guest}, party of {party}: table {made['table_number']} at {start:%H:%M} ({when})")
+    return lines
+
+
 def print_summary(result: dict) -> None:
     t = result["totals"]
     rupees = lambda p: f"₹{p / 100:,.0f}"  # noqa: E731
@@ -316,3 +442,5 @@ def print_summary(result: dict) -> None:
     print(f"  Operating expenses {rupees(t['operating_expenses_paise'])}  |  net profit {rupees(t['net_profit_paise'])} "
           f"({t['net_margin_percent']}%)  |  ingredient purchases {rupees(t['ingredient_purchases_paise'])} (in COGS)")
     print(f"  GST collected {rupees(t['gst_paise'])} (not revenue)")
+    print(f"  Bookings {result['bookings']} ({result['no_shows']} no-shows, {result['booking_gave_up']} gave up "
+          f"waiting, {result['booking_full']} couldn't be placed)")

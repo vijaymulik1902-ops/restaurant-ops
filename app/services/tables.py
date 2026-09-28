@@ -3,7 +3,7 @@ from sqlalchemy import and_, func, select
 
 from app.db import now, read_session, write_session
 from app.models import DiningTable, Kot, Order, OrderItem, Staff
-from app.services import Event, ServiceError, minutes_since
+from app.services import Event, ServiceError, audit, holds, minutes_since
 
 LIVE_ORDER_STATUSES = ("open", "billed")
 MAX_GUESTS = 50
@@ -33,37 +33,59 @@ def get_active_staff(s, staff_id: int) -> Staff:
     return staff
 
 
-def open_table(table_id: int, waiter_id: int, guest_count: int) -> tuple[dict, list[Event]]:
-    """Seat guests: create an open order and mark the table occupied.
+def open_table(table_id: int, waiter_id: int, guest_count: int,
+               override_hold: bool = False) -> tuple[dict, list[Event]]:
+    """Seat walk-in guests: create an open order and mark the table occupied.
 
-    The table must be available. Returns ({"order_id", "table_number"}, events).
+    The table must be available. A table held by a reservation (booked, starting within
+    45 minutes) is refused; the counter or a manager may override it, which is audited
+    as booking_override. Returns ({"order_id", "table_number"}, events).
     """
+    check_guest_count(guest_count)
+    with write_session() as s:
+        table = s.get(DiningTable, table_id)
+        if table is None:
+            raise ServiceError("Table not found")
+        staff = get_active_staff(s, waiter_id)
+        ts = now()
+        hold = holds.active_hold(s, table.id, ts) if table.status == "available" else None
+        if hold is not None:
+            when = f"{hold['starts_at']:%H:%M}"
+            if not override_hold:
+                fix = ("Ask the counter or a manager." if staff.role == "waiter"
+                       else 'Use "Seat walk-in anyway" to override.')
+                raise ServiceError(f"Table {table.number} is reserved for {when} "
+                                   f"({hold['guest_name']}, {hold['party_size']}). {fix}")
+            if staff.role not in ("counter", "manager"):
+                raise ServiceError("Only the counter or a manager can seat walk-ins at a reserved table")
+            audit.record(s, staff.id, audit.BOOKING_OVERRIDE, "booking", hold["booking_id"],
+                         new={"table_number": table.number, "walk_in_guests": guest_count,
+                              "reserved_for": when})
+        order = seat_guests(s, table, staff.id, guest_count, ts)
+        result = {"order_id": order.id, "table_number": table.number}
+        events = table_events(table, order.id)
+    return result, events
+
+
+def check_guest_count(guest_count: int) -> None:
     if not isinstance(guest_count, int) or isinstance(guest_count, bool) or guest_count < 1:
         raise ServiceError("Guest count must be at least 1")
     if guest_count > MAX_GUESTS:
         raise ServiceError(f"Guest count cannot exceed {MAX_GUESTS}")
 
-    with write_session() as s:
-        table = s.get(DiningTable, table_id)
-        if table is None:
-            raise ServiceError("Table not found")
-        if table.status != "available":
-            raise ServiceError(f"Table {table.number} is {table.status}, not available")
-        get_active_staff(s, waiter_id)
 
-        ts = now()
-        order = Order(
-            table_id=table.id, waiter_id=waiter_id, guest_count=guest_count,
-            status="open", created_at=ts,
-        )
-        s.add(order)
-        table.status = "occupied"
-        table.status_since = ts
-        s.flush()
-
-        result = {"order_id": order.id, "table_number": table.number}
-        events = table_events(table, order.id)
-    return result, events
+def seat_guests(s, table: DiningTable, staff_id: int, guest_count: int, ts) -> Order:
+    """Inside the caller's write session: open an order and mark the table occupied.
+    Shared by open_table (walk-ins) and bookings.seat_booking (reservations)."""
+    if table.status != "available":
+        raise ServiceError(f"Table {table.number} is {table.status}, not available")
+    order = Order(table_id=table.id, waiter_id=staff_id, guest_count=guest_count,
+                  status="open", created_at=ts)
+    s.add(order)
+    table.status = "occupied"
+    table.status_since = ts
+    s.flush()
+    return order
 
 
 def list_tables(section: str | None = None, table_id: int | None = None) -> list[dict]:
@@ -100,15 +122,18 @@ def list_tables(section: str | None = None, table_id: int | None = None) -> list
     current = now()
     with read_session() as s:
         rows = s.execute(stmt).all()
-    return [_table_row(r, current) for r in rows]
+        held = holds.table_holds(s, current, table_id)  # one query, however many tables
+    return [_table_row(r, current, held.get(r.id)) for r in rows]
 
 
 def _seconds_since(start, current) -> int | None:
     return None if start is None else max(0, int((current - start).total_seconds()))
 
 
-def _table_row(r, current) -> dict:
+def _table_row(r, current, held: dict | None = None) -> dict:
     return {
+        "hold": held["hold"] if held else None,  # reservation holding this table now (no phone)
+        "refresh_in": held["refresh_in"] if held else None,  # seconds until the hold state changes
         "table_id": r.id,
         "number": r.number,
         "capacity": r.capacity,

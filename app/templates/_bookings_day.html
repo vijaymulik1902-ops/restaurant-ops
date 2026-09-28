@@ -1,0 +1,70 @@
+{#- One business day of bookings: counts, the laptop timeline (tables x 12:00-24:00) and the
+    phone list. Reloaded whole on live booking events. Phones only appear for counter/manager. -#}
+<div class="chip-row booking-counts" aria-label="Summary">
+  <span class="count-chip">{{ counts.booked }} booked</span>
+  <span class="count-chip">{{ counts.seated }} seated</span>
+  <span class="count-chip">{{ counts.completed }} done</span>
+  {% if counts.late %}<span class="count-chip late">{{ counts.late }} late</span>{% endif %}
+  {% if counts.no_show %}<span class="count-chip">{{ counts.no_show }} no-show</span>{% endif %}
+  <span class="count-chip">{{ counts.covers|plural("guest") }}</span>
+</div>
+
+{% if not bookings %}
+<div class="empty"><strong>No bookings{% if is_today %} today{% else %} for this day{% endif %}.</strong>{% if can_edit %}Tap “New booking” to add one.{% else %}Reservations made at the counter show up here.{% endif %}</div>
+{% else %}
+<div class="booking-legend legend" aria-hidden="true">
+  <span><i class="b-booked"></i>Booked</span><span><i class="b-seated"></i>Seated</span>
+  <span><i class="b-completed"></i>Done</span><span><i class="b-no_show"></i>No-show</span><span><i class="b-late"></i>Late</span>
+</div>
+
+{#- Laptop: timeline. Only drawn >= 900px (CSS); the list below is the phone view. -#}
+<div class="timeline" role="table" style="--hours: {{ hours|length }}"
+     aria-label="Bookings by table, {{ '%02d' % (hours[0] % 24) }}:00 to {{ '%02d' % ((hours[-1] + 1) % 24) }}:00">
+  <div class="tl-row tl-head" role="row">
+    <span class="tl-label" role="columnheader">Table</span>
+    <div class="tl-track" role="columnheader">
+      {% for h in hours %}<span class="tl-hour" style="left: {{ (h - hours[0]) * 100 / hours|length }}%">{{ '%02d' % (h % 24) }}</span>{% endfor %}
+    </div>
+  </div>
+  {% for t in tables %}
+  <div class="tl-row" role="row">
+    <span class="tl-label" role="rowheader">T{{ t.number }} <small>{{ t.capacity }}</small></span>
+    <div class="tl-track" role="cell">
+      {% if now_left is not none %}<span class="tl-now" style="left: {{ now_left }}%" aria-hidden="true"></span>{% endif %}
+      {% for b in t.bookings %}
+      {% set label %}{{ b.starts_at.strftime('%H:%M') }} {{ b.guest_name }} ({{ b.party_size }}){% endset %}
+      {% if can_edit %}
+      <a class="bblock st-{{ b.status }}{% if b.late %} late{% endif %}" href="/bookings/{{ b.booking_id }}"
+         style="left: {{ b.left }}%; width: {{ b.width }}%" title="{{ label }} · {{ b.status|replace('_', '-') }}"><b>{{ b.starts_at.strftime('%H:%M') }} · {{ b.party_size }}</b><span>{{ b.guest_name }}</span></a>
+      {% else %}
+      <span class="bblock st-{{ b.status }}{% if b.late %} late{% endif %}" style="left: {{ b.left }}%; width: {{ b.width }}%"
+            title="{{ label }} · {{ b.status|replace('_', '-') }}"><b>{{ b.starts_at.strftime('%H:%M') }} · {{ b.party_size }}</b><span>{{ b.guest_name }}</span></span>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if outside %}
+  <p class="muted tl-outside">Not on the timeline:
+    {% for b in outside %}{{ b.starts_at.strftime('%H:%M') }} {{ b.guest_name }} (T{{ b.table_number }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
+</div>
+
+{#- Phone: list by time -#}
+<ul class="booking-list">
+  {% for b in bookings %}
+  <li class="bitem st-{{ b.status }}{% if b.late %} late{% endif %}" id="booking-{{ b.booking_id }}">
+    <span class="btime">{{ b.starts_at.strftime('%H:%M') }}</span>
+    <span class="bmain">
+      <strong>{{ b.guest_name }}</strong> · {{ b.party_size|plural("guest") }}
+      <small>Table {{ b.table_number or '—' }} · until {{ b.ends_at.strftime('%H:%M') }}{% if b.note %} · {{ b.note }}{% endif %}</small>
+      {% if can_edit and b.phone %}<a class="bphone" href="tel:{{ b.phone }}"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg>{{ b.phone }}</a>{% endif %}
+    </span>
+    <span class="bside">
+      <span class="badge bstat st-{{ b.status }}{% if b.late %} late{% endif %}">{% if b.late %}late{% else %}{{ b.status|replace('_', '-') }}{% endif %}</span>
+      {% if can_edit and b.status == 'booked' %}<a class="small-link" href="/bookings/{{ b.booking_id }}">Open</a>{% endif %}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

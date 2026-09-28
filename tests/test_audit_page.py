@@ -57,6 +57,29 @@ def busy_audit(db, monkeypatch, tmp_path):
     kitchen.ready_item(item, "tandoor")
     kitchen.cancel_item(item, "Dropped while plating", manager)
     orders.cancel_order(opened["order_id"], "Guests left", manager)
+    # Every booking action, on a fixed clock so business days don't depend on the real time
+    from datetime import datetime
+
+    from app.clock_override import override_now
+    from app.services import bookings
+    from conftest import Clock
+
+    clock = Clock(datetime(2026, 9, 25, 16, 0))
+    with override_now(clock):
+        counter = s_counter()
+        late, _ = bookings.create_booking("Asha", None, 2, datetime(2026, 9, 25, 17, 0), 90, None, None, counter)
+        moved, _ = bookings.create_booking("Bina", None, 2, datetime(2026, 9, 25, 21, 0), 90, None, None, counter)
+        bookings.update_booking(moved["booking_id"], "Bina", None, 3, datetime(2026, 9, 25, 21, 30), 90, None,
+                                None, counter)
+        bookings.cancel_booking(moved["booking_id"], "Guest cancelled", counter)
+        held, _ = bookings.create_booking("Chetan", None, 2, datetime(2026, 9, 25, 16, 30), 90, None, None, counter)
+        seat, _ = bookings.create_booking("Divya", None, 2, datetime(2026, 9, 25, 16, 40), 90, None, None, counter)
+        bookings.seat_booking(seat["booking_id"], counter)
+        held_table = bookings.get_booking(held["booking_id"], include_phone=False)["table_id"]
+        tables.open_table(held_table, manager, 2, override_hold=True)
+        clock.current = datetime(2026, 9, 25, 17, 20)
+        bookings.mark_no_show(late["booking_id"], manager)
+
     # An AI chat question (Gemini mocked: no network in tests)
     from app import config
     from app.services import ai_chat
@@ -66,6 +89,11 @@ def busy_audit(db, monkeypatch, tmp_path):
         "candidates": [{"content": {"role": "model", "parts": [{"text": "Mocked answer."}]}}]})
     ai_chat.ask("Which dishes should I promote?", "conv-audit", manager)
     return {"manager": manager, "rahul": rahul}
+
+
+def s_counter() -> int:
+    with read_session() as s:
+        return s.scalar(select(Staff.id).where(Staff.role == "counter"))
 
 
 def test_every_action_type_is_present(busy_audit):

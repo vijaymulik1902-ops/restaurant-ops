@@ -91,6 +91,9 @@ SCREENS = {
     "/home": {"manager"},
     "/insights": {"manager"},
     "/staff": {"manager"},
+    "/bookings": {"waiter", "counter", "manager"},
+    "/bookings/upcoming": {"counter", "manager"},
+    "/bookings/day": {"waiter", "counter", "manager"},
 }
 
 

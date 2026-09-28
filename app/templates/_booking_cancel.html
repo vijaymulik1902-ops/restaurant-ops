@@ -1,0 +1,14 @@
+{#- Cancel a booking: a standard reason or a typed one (required). -#}
+<details class="item-cancel booking-cancel">
+  <summary>Cancel booking</summary>
+  <form method="post" action="/bookings/{{ b.booking_id }}/cancel" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="chips" role="radiogroup" aria-label="Reason">
+      {% for r in BOOKING_CANCEL_REASONS %}
+      <label class="chip"><input type="radio" name="reason_choice" value="{{ r }}"><span>{{ r }}</span></label>
+      {% endfor %}
+    </div>
+    <input type="text" name="reason" maxlength="120" placeholder="Or type a reason">
+    <button type="submit" class="danger">Cancel {{ b.guest_name }}'s booking</button>
+  </form>
+</details>

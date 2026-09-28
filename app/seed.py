@@ -5,6 +5,7 @@ Usage:
     python -m app.seed --reset          # wipe and reseed
     python -m app.seed --reset --tables 150
     python -m app.seed --reset --history 30 [--seed-value 42]   # plus 30 days of demo history
+    python -m app.seed --demo-bookings        # today's demo reservations; adds to the DB, never resets
     python -m app.seed --reset --tables 150 --loadtest-staff 30   # extra "LT ..." logins for locust
     python -m app.seed --random-pins    # random PINs (6-digit manager); on existing data: rotate all PINs
 """
@@ -181,12 +182,18 @@ if __name__ == "__main__":
     parser.add_argument("--seed-value", type=int, default=42, help="random seed for --history (default 42)")
     parser.add_argument("--random-pins", action="store_true",
                         help="random PINs (4 digits, 6 for the manager), printed once; on existing data, rotate all")
+    parser.add_argument("--demo-bookings", action="store_true",
+                        help="book 4 tables for TODAY relative to now (adds to the existing DB, never resets; "
+                             "safe to run twice)")
     parser.add_argument("--loadtest-staff", type=int, default=0, metavar="N",
                         help="add N extra waiters and N extra chefs for the locust load test")
     args = parser.parse_args()
     if args.tables < 1:
         raise SystemExit("--tables must be at least 1")
-    seed(args.tables, args.reset, random_pins=args.random_pins)
+    only_demo_bookings = args.demo_bookings and not (args.reset or args.history or args.random_pins
+                                                     or args.loadtest_staff)
+    if not only_demo_bookings:
+        seed(args.tables, args.reset, random_pins=args.random_pins)
     if args.loadtest_staff:
         add_loadtest_staff(args.loadtest_staff)
     if args.history:
@@ -196,5 +203,16 @@ if __name__ == "__main__":
         ensure_schema()
         try:
             print_summary(generate_history(args.history, args.seed_value))
+        except HistoryError as e:
+            raise SystemExit(str(e))
+    if args.demo_bookings:
+        from app.db import init_db
+        from app.history import HistoryError, add_demo_bookings
+        from app.migrations import ensure_schema
+
+        init_db()        # creates the bookings table on an older database
+        ensure_schema()
+        try:
+            print("Demo bookings for today:\n" + "\n".join(add_demo_bookings()))
         except HistoryError as e:
             raise SystemExit(str(e))

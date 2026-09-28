@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Bookings · {{ RESTAURANT_NAME }}{% endblock %}
+{% block page %}bookings{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Bookings</h2>
+    <p class="muted sub">{{ day.strftime('%a %d %b %Y') }}{% if is_today %} · today{% endif %}{% if not can_edit %} · read-only{% endif %}</p>
+  </div>
+  {% if can_edit %}
+  <span class="head-actions">
+    <button type="button" class="big-add" data-sheet-open="new-booking" aria-haspopup="dialog">+ New booking</button>
+  </span>
+  {% endif %}
+</div>
+{% if can_edit %}
+<form method="get" action="/bookings" class="day-picker">
+  <a role="button" class="outline secondary small" href="/bookings?day={{ (day - timedelta(days=1)).isoformat() }}" aria-label="Previous day">‹</a>
+  <label class="visually-hidden" for="day-pick">Day</label>
+  <input type="date" id="day-pick" name="day" value="{{ day.isoformat() }}" required>
+  <button type="submit" class="outline small">Show</button>
+  <a role="button" class="outline secondary small" href="/bookings?day={{ (day + timedelta(days=1)).isoformat() }}" aria-label="Next day">›</a>
+  {% if not is_today %}<a class="small-link" href="/bookings">Today</a>{% endif %}
+</form>
+{% endif %}
+
+<div id="bookings-day" data-bookings data-list-url="/bookings/day?day={{ day.isoformat() }}"
+     hx-get="/bookings/day?day={{ day.isoformat() }}" hx-trigger="every 60s" hx-swap="innerHTML">
+  {% include "_bookings_day.html" %}
+</div>
+
+{% if can_edit %}
+<div class="sheet sheet-wide" id="sheet-new-booking" role="dialog" aria-modal="true" aria-labelledby="new-booking-title" hidden>
+  <button type="button" class="outline small sheet-close" data-sheet-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+  <h3 id="new-booking-title">New booking</h3>
+  <form method="post" action="/bookings" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% set b = none %}{% set fid = "new" %}
+    {% include "_booking_fields.html" %}
+    <button type="submit" class="big">Save booking</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{#- Counter screen + Manager Home: booked reservations in the next 3 hours, late ones first-class. -#}
+{% if upcoming %}
+<ul class="upcoming-list">
+  {% for b in upcoming %}
+  <li class="uitem{% if b.late %} late{% endif %}">
+    <span class="btime">{{ b.starts_at.strftime('%H:%M') }}{% if b.late %}<small class="late-tag">Late</small>{% endif %}</span>
+    <span class="bmain"><strong>{{ b.guest_name }}</strong> · {{ b.party_size }} · T{{ b.table_number or '—' }}
+      {% if b.phone %}<a class="bphone" href="tel:{{ b.phone }}"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg>{{ b.phone }}</a>{% endif %}
+      {% if b.note %}<small>{{ b.note }}</small>{% endif %}</span>
+    <span class="uactions">
+      {% if b.can_seat %}
+      <form method="post" action="/bookings/{{ b.booking_id }}/seat" class="inline" data-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="go small">Seat</button>
+      </form>
+      {% endif %}
+      {% include "_booking_cancel.html" %}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted upcoming-empty">No bookings in the next 3 hours.</p>
+{% endif %}

@@ -1,0 +1,16 @@
+{#- Free tables for the slot typed into a booking form (smallest first). -#}
+<label>Table
+{% if tables is none %}
+  <select name="table_id"><option value="">Auto: smallest free table</option></select>
+  <small class="muted">{{ hint }}</small>
+{% elif not tables %}
+  <select name="table_id"><option value="">No free table fits</option></select>
+  <small class="danger-text">No free table fits this party at that time. Try another time or a shorter stay.</small>
+{% else %}
+  <select name="table_id">
+    <option value="">Auto: table {{ tables[0].number }} ({{ tables[0].capacity }} seats, smallest free)</option>
+    {% for t in tables %}<option value="{{ t.table_id }}" {% if selected == t.table_id %}selected{% endif %}>Table {{ t.number }} · {{ t.capacity }} seats · section {{ t.section }}</option>{% endfor %}
+  </select>
+  <small class="muted">{{ tables|length|plural("free table") }} for this slot.</small>
+{% endif %}
+</label>

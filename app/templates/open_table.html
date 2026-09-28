@@ -2,14 +2,43 @@
 {% block title %}Table {{ t.number }} · {{ RESTAURANT_NAME }}{% endblock %}
 {% block page %}open-table{% endblock %}
 {% block content %}
-<h2>Table {{ t.number }} <small>({{ t.capacity|plural("seat") }})</small></h2>
+<div class="page-head"><h2>Table {{ t.number }} <small>({{ t.capacity|plural("seat") }})</small></h2></div>
+{% set can_override = staff.role in BOOKING_EDIT_ROLES %}
+{% if t.hold %}
+{#- Held for a reservation starting within 45 minutes (or late and not yet seated) -#}
+<section class="card hold-card{% if t.hold.late %} late{% endif %}">
+  <p class="hold-title">{% if t.hold.late %}Late booking{% else %}Reserved{% endif %} ·
+    {{ t.hold.starts_at.strftime('%H:%M') }}</p>
+  <p class="hold-who"><strong>{{ t.hold.guest_name }}</strong> · party of {{ t.hold.party_size }}</p>
+  {% if can_override %}
+  <form method="post" action="/bookings/{{ t.hold.booking_id }}/seat" data-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="go big">Guest arrived: seat {{ t.hold.guest_name }}</button>
+  </form>
+  {% else %}
+  <p class="muted">Walk-ins can't be seated here. Ask the counter or a manager.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if not t.hold or can_override %}
+{% if t.hold %}
+<details class="danger-zone override">
+  <summary>Seat walk-in anyway</summary>
+  <p class="muted">The table may not be free when {{ t.hold.guest_name }} arrives. This is recorded in the audit log.</p>
+{% else %}
 <p>How many guests?</p>
-<form method="post" action="/floor/tables/{{ t.table_id }}/open" class="guest-grid" data-once>
+{% endif %}
+<form method="post" action="/floor/tables/{{ t.table_id }}/open" class="guest-grid" data-once
+      {% if t.hold %}data-confirm="Seat walk-ins at table {{ t.number }}, reserved for {{ t.hold.guest_name }} at {{ t.hold.starts_at.strftime('%H:%M') }}?"{% endif %}>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if t.hold %}<input type="hidden" name="override_hold" value="1">{% endif %}
   {% for n in guest_options %}
   <button type="submit" name="guest_count" value="{{ n }}"
           class="{% if n > t.capacity %}secondary{% endif %}">{{ n }}</button>
   {% endfor %}
 </form>
+{% if t.hold %}</details>{% endif %}
+{% endif %}
 <a href="/floor" role="button" class="secondary outline big">Back</a>
 {% endblock %}

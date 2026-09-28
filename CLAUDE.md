@@ -63,6 +63,11 @@ Priority order: correctness > reliability > speed > looks. Keep it simple, no ne
 | Item cost, cost of goods, profit, margins    |  no    |  no  |   no    |   yes   |
 | Sales summary report, CSV export             |  no    |  no  |   no    |   yes   |
 | Expenses: view, add, delete                  |  no    |  no  |   no    |   yes   |
+| Bookings: view today's (read-only, no phones) |  yes   |  no  |   yes   |   yes   |
+| Bookings: create, edit, cancel, seat, any day |  no    |  no  |   yes   |   yes   |
+| Booking: mark no-show (15+ min after start)  |  no    |  no  |   no    |   yes   |
+| Guest phone numbers                          |  no    |  no  |   yes   |   yes   |
+| Seat walk-ins at a reserved (held) table     |  no    |  no  | yes (audited override) | yes (audited override) |
 
 Rules that keep cost data private and separate from prices:
 - Billing and every non-manager service read ONLY price fields. They must never SELECT
@@ -73,6 +78,19 @@ Rules that keep cost data private and separate from prices:
   must never modify the other. Edits apply to future orders only (order lines hold snapshots).
 - Every menu price/cost edit and every expense add/delete is logged in an audit table
   (who, when, old value, new value) — ask before adding the table.
+
+Bookings (app/services/bookings.py, table `bookings`):
+- A booked/seated booking occupies its table from starts_at to starts_at + duration_min; two never
+  overlap on one table. No table given: the smallest free table that fits. Times are business-day based.
+- Floor HOLD is derived (app/services/holds.py), never stored in DiningTable.status: a table with a
+  booked reservation from 45 min before its start until its slot ends shows "Reserved HH:MM · name ·
+  party"; it is "late" 15 min after the start. Waiters can't open a held table; counter/manager can
+  override (audited as booking_override).
+- seat_booking opens the table via tables.seat_guests() in the same transaction and links order_id.
+  Paying that order completes the booking; cancelling it cancels the booking (reason "order cancelled",
+  audited). "completed" always means the guests were served and paid.
+- Phone numbers never appear in waiter pages, SSE events, AI tools or audit JSON (audit.record refuses
+  a "phone" key). Booking events carry ids and status only.
 
 ## Sales report definitions (never mix these up)
 - Only PAID bills count, filtered by Bill.paid_at within the selected range (inclusive business days).

@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 
 from app.db import read_session
 from app.models import STATIONS, OrderItem
-from app.services import business_day_bounds, validate_range
+from app.services import bookings, business_day_bounds, validate_range
 from app.services.sales import sales_summary
 from app.text import plural, whole_rupees
 
@@ -139,7 +139,26 @@ def insight_cards(start: date, end: date) -> list[dict]:
         listing = _and([f"{st} {m} min" for st, m in times.items()])
         cards.append(_card("kitchen_time", "Kitchen time", f"{times[slowest]} min",
                            f"Average time from order to ready: {listing}. The slowest station is {slowest}."))
+    cards.extend(_booking_cards(bookings.summary(start, end)))
     return cards
+
+
+def _booking_cards(b: dict) -> list[dict]:
+    """No-show rate, and table visits from bookings vs walk-ins (counts only)."""
+    out = []
+    due = b["arrived"] + b["no_shows"]
+    if due:
+        out.append(_card("no_shows", "No-show rate", f"{b['no_show_rate_percent']}%",
+                         f"{b['no_show_rate_percent']}% of bookings were no-shows ({b['no_shows']} of "
+                         f"{plural(due, 'booking')} that were due)."))
+    else:
+        out.append(_card("no_shows", "No-show rate", "—", "No bookings were due in this period."))
+    if b["table_visits"]:
+        out.append(_card("bookings_vs_walkins", "Bookings vs walk-ins", f"{b['booked_share_percent']}%",
+                         f"{b['visits_from_bookings']:,} of {b['table_visits']:,} table visits came from bookings "
+                         f"({b['booked_share_percent']}%); the rest ({plural(b['walk_ins'], 'walk-in')}) "
+                         f"came in without one."))
+    return out
 
 
 def page(preset: str | None, start: date | None, end: date | None) -> dict:

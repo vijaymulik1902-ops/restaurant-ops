@@ -184,9 +184,9 @@
   // (so a phone with a wrong clock still shows the right age).
   function stamp(root) {
     var now = Date.now();
-    var els = (root.querySelectorAll ? root.querySelectorAll('[data-age], [data-late-in]') : []);
+    var els = (root.querySelectorAll ? root.querySelectorAll('[data-age], [data-late-in], [data-refresh-in]') : []);
     Array.prototype.forEach.call(els, function (el) { if (!el._t0) el._t0 = now; });
-    if (root.dataset && (root.dataset.age || root.dataset.lateIn) && !root._t0) root._t0 = now;
+    if (root.dataset && (root.dataset.age || root.dataset.lateIn || root.dataset.refreshIn) && !root._t0) root._t0 = now;
   }
   function tick() {
     var now = Date.now();
@@ -197,6 +197,11 @@
     document.querySelectorAll('[data-late-in]').forEach(function (el) {
       var left = Number(el.dataset.lateIn) - (now - (el._t0 || now)) / 1000;
       el.classList.toggle('late', left <= 0);
+    });
+    // A reservation's hold starts / turns late / ends with no event: re-read that card once
+    document.querySelectorAll('[data-refresh-in]').forEach(function (el) {
+      var left = Number(el.dataset.refreshIn) - (now - (el._t0 || now)) / 1000;
+      if (left <= 0 && !el._refreshing) { el._refreshing = true; refreshCard(el); }
     });
     var kempty = document.getElementById('kempty');
     var kboard = document.querySelector('.kboard');
@@ -246,6 +251,16 @@
       homeTimer = null;
       htmx.ajax('GET', '/home', { target: '#home-live', select: '#home-live', swap: 'outerHTML' });
     }, 2000);
+  }
+  var bookingsTimer = null;
+  function reloadBookings() {  // several events can arrive together: one reload per second at most
+    if (bookingsTimer) return;
+    bookingsTimer = setTimeout(function () {
+      bookingsTimer = null;
+      document.querySelectorAll('[data-bookings]').forEach(function (el) {
+        htmx.ajax('GET', el.dataset.listUrl, { target: el, swap: 'innerHTML' });
+      });
+    }, 1000);
   }
   function reloadLists() {
     refreshHome();
@@ -336,7 +351,12 @@
     order: function (d) { refreshOrder(d.order_id); },
     menu: function (d) { setDishAvailable(d); },
     menu_changed: function () { refreshCard(document.getElementById('menu-block')); },
-    bill: function () { refreshHome(); }
+    bill: function () { refreshHome(); },
+    booking: function (d) {  // ids + status only (never names or phones)
+      if (d.table_id) refreshCard(document.getElementById('table-' + d.table_id));
+      reloadBookings();
+      refreshHome();
+    }
   };
 
   var streamUrl = body.dataset.stream;
@@ -656,17 +676,25 @@
     });
   });
 
-  /* ---------- login: choosing a staff badge slides the keypad up ---------- */
+  /* ---------- login: choosing a staff badge reveals the PIN section below the grid ---------- */
   var pinPanel = document.getElementById('pin-panel');
   document.querySelectorAll('.staff-pick input[name="name"]').forEach(function (radio) {
     radio.addEventListener('change', function () {
       if (!pinPanel) return;
-      pinPanel.classList.remove('waiting');
+      var wasHidden = pinPanel.hidden;
+      pinPanel.hidden = false;
+      if (wasHidden) {
+        pinPanel.classList.remove('revealing');
+        void pinPanel.offsetWidth;  // restart the fade/slide
+        pinPanel.classList.add('revealing');
+      }
       var who = document.getElementById('for-who');
       if (who) who.textContent = 'PIN for ' + radio.value;
       var p = document.getElementById('pin');
       if (p) p.value = '';
-      pinPanel.scrollIntoView({ block: 'nearest' });
+      var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var phone = window.matchMedia && window.matchMedia('(max-width: 899px)').matches;
+      pinPanel.scrollIntoView({ block: phone ? 'start' : 'nearest', behavior: still ? 'auto' : 'smooth' });
     });
   });
 

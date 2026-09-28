@@ -33,13 +33,13 @@ def floor_board(request: Request, all: bool = False, view: str = "floor",
                 staff: CurrentStaff = Depends(floor_staff)):
     """Full grid of cards, used after (re)connecting the live stream."""
     rows = tables.list_tables(_section_for(staff, all))
-    return partial(request, "_table_cards.html", tables=rows, view=_view(view))
+    return partial(request, "_table_cards.html", tables=rows, view=_view(view), staff=staff)
 
 
 @router.get("/floor/tables/{table_id}/card")
 def table_card(request: Request, table_id: Id, view: str = "floor",
                staff: CurrentStaff = Depends(floor_staff)):
-    return partial(request, "_table_card.html", t=tables.get_table(table_id), view=_view(view))
+    return partial(request, "_table_card.html", t=tables.get_table(table_id), view=_view(view), staff=staff)
 
 
 @router.get("/floor/tables/{table_id}/open")
@@ -51,9 +51,11 @@ def open_table_page(request: Request, table_id: Id, staff: CurrentStaff = Depend
 
 
 @router.post("/floor/tables/{table_id}/open")
-def open_table_submit(table_id: Id, guest_count: int = Form(0),
+def open_table_submit(table_id: Id, guest_count: int = Form(0), override_hold: bool = Form(False),
                       staff: CurrentStaff = Depends(floor_staff)):
-    result, events = tables.open_table(table_id, staff.id, guest_count)
+    """Seat walk-ins. override_hold (counter/manager only, checked in the service) seats them at a
+    table held for a reservation; it is audited as booking_override."""
+    result, events = tables.open_table(table_id, staff.id, guest_count, override_hold=override_hold)
     publish(events)
     return see_other(f"/orders/{result['order_id']}")
 

@@ -9,6 +9,7 @@ from app.db import read_session
 from app.history import HistoryError, generate_history
 from app.models import AuditLog, Bill, Order, OrderItem
 from app.services import business_day_of, reports, sales
+from app.services.insights import insight_cards
 from conftest import PIN_HASH
 
 TODAY = date(2026, 9, 25)
@@ -92,3 +93,41 @@ def test_peaks_at_lunch_and_dinner_and_busier_weekends(seeded):
     weekend = [v for d, v in per_day.items() if d.weekday() >= 5]
     weekday = [v for d, v in per_day.items() if d.weekday() < 5]
     assert sum(weekend) / len(weekend) > 1.2 * sum(weekday) / len(weekday)
+
+
+def test_thirty_days_have_weekend_bookings_and_at_least_three_no_shows(seeded):
+    from app.models import Booking
+
+    result = generate_history(30, seed_value=42, today=TODAY)  # 8 weekend days x 3 bookings (12 tables)
+    with read_session() as s:
+        rows = s.execute(select(Booking.status, Booking.starts_at, Booking.order_id)).all()
+    statuses = [st for st, _, _ in rows]
+    assert result["bookings"] == len(rows) > 20
+    assert set(statuses) <= {"completed", "no_show", "cancelled"}                  # nothing left hanging
+    assert all(ts.weekday() >= 5 and 19 <= ts.hour < 22 for _, ts, _ in rows)     # weekend dinners only
+    assert all(order_id for st, _, order_id in rows if st == "completed")
+    no_shows = statuses.count("no_show")
+    assert no_shows >= 3 and no_shows == result["no_shows"]
+    assert no_shows <= 0.15 * len(rows)                                             # about 8%, not a flood
+    card = {c["key"]: c for c in insight_cards(TODAY - timedelta(days=30), TODAY - timedelta(days=1))}["no_shows"]
+    assert card["figure"] not in ("0.0%", "—")
+
+
+def test_no_show_picks_are_about_8_percent():
+    from app.history import _no_show_picks
+
+    assert _no_show_picks(0) == set() and len(_no_show_picks(6)) == 0     # a short run: none forced
+    assert len(_no_show_picks(24)) == 3 and len(_no_show_picks(43)) == 3
+    assert len(_no_show_picks(100)) == 8 and _no_show_picks(43) == _no_show_picks(43)  # deterministic
+    assert all(0 <= i < 43 for i in _no_show_picks(43))
+
+
+def test_history_does_not_book_today(seeded):
+    from app.db import now
+    from app.models import Booking
+    from app.services import business_day_bounds
+
+    generate_history(7)  # real "today": bookings only on past days (demo ones need --demo-bookings)
+    today_start = business_day_bounds(business_day_of(now()))[0]
+    with read_session() as s:
+        assert s.scalar(select(func.count(Booking.id)).where(Booking.starts_at >= today_start)) == 0

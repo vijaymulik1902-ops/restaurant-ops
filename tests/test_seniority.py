@@ -56,6 +56,43 @@ def test_login_badges_have_role_rings_initials_and_labels(seeded):
     assert html.count('class="pick role-waiter"') == 7 and html.count('class="pick role-counter"') == 1
     assert '<span class="initials" aria-hidden="true">RA</span>' in html
     assert "Chef · tandoor" in html and "Waiter · A" in html
-    assert 'id="pin-panel"' in html and 'class="pin-panel waiting"' in html and "PIN keypad" in html
+    assert 'id="pin-panel"' in html and "PIN keypad" in html
     assert initials("Rahul Shah") == "RS" and initials("Rahul") == "RA" and initials("") == "?"
     assert role_label("manager") == "Manager" and role_label("waiter", None, "C") == "Waiter · C"
+
+
+def test_login_layout_hides_pin_until_a_badge_is_chosen(seeded):
+    """Normal flow: name, hint, role-grouped badges in seniority order, then the PIN section,
+    which is hidden until a badge is picked (and forced visible when JavaScript is off)."""
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from test_routes import csrf_from
+
+    c = TestClient(app, follow_redirects=False)
+    html = c.get("/login").text
+    assert re.search(r'<section class="pin-panel" id="pin-panel"[^>]*\bhidden\b', html)
+    assert '<noscript><style>#pin-panel[hidden] { display: block !important; }</style></noscript>' in html
+    # order on the page: hint -> badge grid -> PIN section
+    hint, grid, pin = html.index("Tap your badge"), html.index('class="staff-pick"'), html.index('id="pin-panel"')
+    assert hint < grid < pin
+    assert re.findall(r'<h2 class="pick-group-title">([^<]+)</h2>', html) == ["Management", "Kitchen", "Floor"]
+    assert re.findall(r'name="name" value="([^"]+)"', html) == EXPECTED
+    # after a wrong PIN the page comes back with that person chosen and the PIN section showing
+    c.headers["X-CSRF-Token"] = csrf_from(html)
+    again = c.post("/login", data={"name": "Rahul", "pin": "0000"}).text
+    assert re.search(r'<section class="pin-panel" id="pin-panel"[^>]*>', again).group(0).count("hidden") == 0
+    assert "PIN for Rahul" in again
+
+
+def test_login_css_has_no_overlay_positioning():
+    """The old login floated the PIN panel over the badges (sticky + translucent)."""
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "style.css").read_text()
+    block = css[css.index("Login: role-grouped staff badges"):css.index("Manager screens")]
+    assert "sticky" not in block and "position: fixed" not in block and "margin-top: -" not in block
+    assert "repeat(auto-fill, minmax(5.75rem, 1fr))" in block
+    assert ".pick-grid > label.pick" in block  # beats Pico's label:has([type=radio]) { width: fit-content }

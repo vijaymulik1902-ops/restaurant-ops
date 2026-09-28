@@ -34,14 +34,22 @@ BACKUP_DOWNLOADED = "backup_downloaded"
 AI_QUESTION = "ai_question"
 EXPENSE_ADDED = "expense_added"
 EXPENSE_DELETED = "expense_deleted"
+BOOKING_CREATED = "booking_created"
+BOOKING_UPDATED = "booking_updated"
+BOOKING_CANCELLED = "booking_cancelled"
+BOOKING_NO_SHOW = "booking_no_show"
+BOOKING_SEATED = "booking_seated"
+BOOKING_OVERRIDE = "booking_override"
 ACTIONS = (ITEM_CANCEL, ORDER_CANCEL, BILL_GENERATED, BILL_DISCOUNT, BILL_PAID, AVAILABILITY,
            PRICE_CHANGE, COST_CHANGE, DISH_ADDED, DISH_RENAMED, DISH_ARCHIVED, DISH_RESTORED,
            EXPENSE_ADDED, EXPENSE_DELETED, PIN_CHANGED, STAFF_DEACTIVATED, STAFF_REACTIVATED,
-           BACKUP_DOWNLOADED, AI_QUESTION)
+           BACKUP_DOWNLOADED, AI_QUESTION, BOOKING_CREATED, BOOKING_UPDATED, BOOKING_CANCELLED,
+           BOOKING_NO_SHOW, BOOKING_SEATED, BOOKING_OVERRIDE)
 
 PAGE_SIZE = 50
 _COST_KEYS = ("cost_paise", "unit_cost_paise")
 _SECRET_KEYS = ("pin", "pin_hash", "new_pin", "password")
+_PRIVATE_KEYS = ("phone",)  # guest phone numbers stay in the bookings table only
 
 
 def _to_json(value: dict | None) -> str | None:
@@ -68,6 +76,8 @@ def record(s: Session, staff_id: int, action: str, entity: str, entity_id: int,
         raise ValueError(f"Audit action {action!r} must not carry cost values")
     if any(k in _SECRET_KEYS for v in (old or {}, new or {}) for k in v):
         raise ValueError("Audit rows must never contain a PIN or its hash")
+    if any(k in _PRIVATE_KEYS for v in (old or {}, new or {}) for k in v):
+        raise ValueError("Audit rows must never contain a guest phone number")
     s.add(AuditLog(at=now(), staff_id=staff_id, action=action, entity=entity, entity_id=entity_id,
                    old_value=_to_json(old), new_value=_to_json(new), reason=reason))
 
@@ -83,6 +93,8 @@ def _highlight(action: str, old: dict | None, new: dict | None) -> str | None:
         return "Discount above 10%"
     if action == PRICE_CHANGE:
         return "Price changed"
+    if action == BOOKING_OVERRIDE:
+        return "Walk-in seated at a reserved table"
     return None
 
 

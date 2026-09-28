@@ -24,7 +24,7 @@ from app import auth
 from app.db import init_db
 from app.migrations import ensure_schema
 from app.routers import auth as auth_routes
-from app.routers import counter, floor, kitchen, manager, orders, stream
+from app.routers import bookings, counter, floor, kitchen, manager, orders, stream
 from app.services import ServiceError, backups
 from app.web import ROLE_HOME, back_url, flash, is_htmx, see_other
 
@@ -70,7 +70,7 @@ app = FastAPI(title="Restaurant Ops", lifespan=lifespan, docs_url=None, redoc_ur
               dependencies=[Depends(auth.csrf_protect)])
 auth.install(app)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
-for module in (auth_routes, floor, orders, kitchen, counter, manager, stream):
+for module in (auth_routes, floor, orders, kitchen, counter, manager, bookings, stream):
     app.include_router(module.router)
 
 

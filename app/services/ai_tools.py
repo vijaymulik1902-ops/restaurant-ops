@@ -1,13 +1,13 @@
-"""The ONLY things the AI chat can do: six read-only functions over existing tested services.
+"""The ONLY things the AI chat can do: seven read-only functions over existing tested services.
 
 The model never writes SQL and never sees raw rows. Every function returns aggregated figures
 in rupees. Never sent: PINs, staff names or other personal details, order notes, or free-text
 cancel reasons (bucketed to the standard reasons), since free text could carry injected
-instructions. Dish names are fine.
+instructions. Dish names are fine. Bookings are counts only: no guest names, no phone numbers.
 """
 from datetime import date
 
-from app.services import ServiceError, validate_range
+from app.services import ServiceError, bookings, validate_range
 from app.services.insights import STANDARD_REASONS, operations
 from app.services.sales import OPERATING_CATEGORIES, sales_summary
 
@@ -95,6 +95,15 @@ def kitchen_times_tool(start: date, end: date) -> dict:
             "minutes_by_station": operations(start, end)["kitchen_minutes"]}
 
 
+def bookings_summary_tool(start: date, end: date) -> dict:
+    """Counts only. Guest names and phone numbers are never read into this result."""
+    b = bookings.summary(start, end)
+    return {"range": _range(start, end), "bookings": b["bookings"], "by_status": b["by_status"],
+            "arrived": b["arrived"], "no_shows": b["no_shows"], "no_show_rate_percent": b["no_show_rate_percent"],
+            "table_visits": b["table_visits"], "visits_from_bookings": b["visits_from_bookings"],
+            "walk_ins": b["walk_ins"], "booked_share_percent": b["booked_share_percent"]}
+
+
 _DATE_PARAMS = {"type": "object",
                 "properties": {"start": {"type": "string", "description": "First business day, YYYY-MM-DD"},
                                "end": {"type": "string", "description": "Last business day, YYYY-MM-DD (inclusive)"}},
@@ -109,11 +118,14 @@ TOOLS = {
     "expenses_by_category": (expenses_by_category_tool, "Operating expenses by category, plus ingredient purchases."),
     "cancellations": (cancellations_tool, "Items ordered vs cancelled, cancel rate and counts by standard reason."),
     "kitchen_times": (kitchen_times_tool, "Average minutes from order to ready, per kitchen station."),
+    "bookings_summary": (bookings_summary_tool, "Table bookings by status (booked, seated, completed, cancelled, "
+                                                "no-show), no-show rate, and table visits from bookings vs walk-ins. "
+                                                "Counts only."),
 }
 
 
 def declarations() -> list[dict]:
-    """Gemini functionDeclarations for the six tools."""
+    """Gemini functionDeclarations for the seven tools."""
     return [{"name": name, "description": desc + " Dates are restaurant business days (04:00 to 04:00).",
              "parameters": _DATE_PARAMS} for name, (_, desc) in TOOLS.items()]
 

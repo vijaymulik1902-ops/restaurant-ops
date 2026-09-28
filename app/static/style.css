@@ -630,34 +630,47 @@ body:not([data-page="counter"]) .panel-close { display: none; }
 table.mismatch td { color: var(--text); background: var(--chilli-14); }
 
 /* ==========================================================================
-   Login: staff badges + slide-up keypad
+   Login: role-grouped staff badges, then the PIN section (normal flow only)
    ========================================================================== */
-.login { max-width: 34rem; margin: 0 auto; }
-.login-head { text-align: center; margin: var(--s4) 0 var(--s3); }
-.login-head h1 { margin: 0; color: var(--primary); }
-.staff-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3) var(--s2); border: none; padding: 0; }
-@media (min-width: 600px) { .staff-pick { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
-.staff-pick legend { margin-bottom: var(--s3); font-weight: 700; }
-.pick { margin: 0; }
-.pick input { position: absolute; opacity: 0; }
-.pick span.badge-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: var(--s2) 2px;
-                       border-radius: var(--r-control); cursor: pointer; text-align: center; border: 2px solid transparent; }
-.pick .initials { display: flex; align-items: center; justify-content: center; width: 3.6rem; height: 3.6rem; border-radius: 50%;
-                  font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; background: var(--ink-2); color: var(--text);
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+                   clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.login { max-width: 46rem; margin: 0 auto; display: block; }
+.login-head { text-align: center; margin: var(--s4) 0 var(--s4); }
+.login-head h1 { margin: 0 0 var(--s2); color: var(--primary); }
+.login-head p { margin: 0 0 var(--s1); }
+.login-hint { color: var(--muted); }
+.staff-pick { display: block; border: 0; padding: 0; margin: 0 0 var(--s4); min-width: 0; }
+.pick-group { margin: 0 0 var(--s4); }
+.pick-group-title { margin: 0 0 var(--s2); font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+                    color: var(--muted); font-family: var(--font-body); }
+/* fixed minimum column width: badges wrap to a new row instead of overlapping */
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr)); gap: var(--s2); }
+/* beats Pico's label:has([type=radio]) { width: fit-content } and label { margin-bottom } */
+.pick-grid > label.pick { position: relative; display: block; width: 100%; min-width: 0; margin: 0; cursor: pointer; }
+.pick input[type="radio"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.pick .badge-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 100%;
+                   padding: var(--s2) var(--s1); border-radius: var(--r-control); text-align: center;
+                   border: 2px solid transparent; }
+.pick .initials { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem;
+                  border-radius: 50%; font-family: var(--font-display); font-weight: 800; font-size: 1.3rem;
+                  background: var(--ink-2); color: var(--text);
                   box-shadow: inset 0 0 0 4px var(--role-ring, var(--steel)), 0 1px 3px rgba(24, 33, 43, .08); }
-.pick .who-name { font-weight: 700; font-size: .92rem; line-height: 1.15; overflow-wrap: anywhere; }
-.pick .who-role { color: var(--muted); font-size: .75rem; line-height: 1.15; }
+.pick .who-name { display: block; max-width: 100%; font-weight: 700; font-size: .92rem; line-height: 1.2; overflow-wrap: anywhere; }
+.pick .who-role { display: block; max-width: 100%; color: var(--muted); font-size: .75rem; line-height: 1.2; }
+.pick:hover .badge-btn { background: var(--ink-3); }
 .pick input:checked + .badge-btn { border-color: var(--primary); background: var(--primary-10); }
 .pick input:checked + .badge-btn .initials { background: var(--role-ring); color: #fff; }
+.pick.role-counter input:checked + .badge-btn .initials { color: var(--text); }
 .pick input:focus-visible + .badge-btn { outline: 3px solid var(--primary); outline-offset: 2px; }
-.pin-panel { position: sticky; bottom: 0; margin-top: var(--s4); padding: var(--s4); background: var(--ink-2);
-             border: 1px solid var(--line); border-radius: var(--r-hero) var(--r-hero) 0 0; box-shadow: var(--shadow);
-             transform: translateY(0); transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out); }
-.pin-panel.waiting { transform: translateY(12px); opacity: .55; }
-.pin-panel .for-who { text-align: center; color: var(--muted); margin: 0 0 var(--s2); }
+.pin-panel { display: block; max-width: 24rem; margin: 0 auto var(--s5); padding: var(--s4); background: var(--ink-2);
+             border: 1px solid var(--line); border-radius: var(--r-hero); box-shadow: var(--shadow); }
+.pin-panel.revealing { animation: pin-reveal 220ms var(--ease-out) both; }
+@keyframes pin-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.pin-panel .for-who { text-align: center; margin: 0 0 var(--s3); font-size: 1.25rem; }
+.pin-panel label { color: var(--muted); }
 #pin { text-align: center; font-size: 1.8rem; letter-spacing: .6rem; font-variant-numeric: tabular-nums; }
-.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); margin-bottom: var(--s3); }
-.keypad button { font-family: var(--font-display); font-size: 1.7rem; min-height: 3.75rem; margin: 0;
+.keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); margin-bottom: var(--s3); }
+.keypad button { font-family: var(--font-display); font-size: 1.7rem; min-height: 3.75rem; margin: 0; width: 100%;
                  background: var(--ink-3); color: var(--text); border: 1px solid var(--line); }
 .keypad button.secondary { font-family: var(--font-body); font-size: 1rem; }
 
@@ -810,7 +823,6 @@ table.sortable tr.low td:first-child { color: var(--turmeric-text); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   button:active, [role="button"]:active { transform: none; }
   .kcard.htmx-swapping { transform: none; opacity: 1; }
-  .pin-panel.waiting { transform: none; }
 }
 
 /* manager home */
@@ -830,3 +842,135 @@ nav.cat-strip, nav.chip-row, nav.sidebar { justify-content: flex-start; }
 .filters[role="group"], .chip-row[role="group"] { display: flex; width: auto; box-shadow: none; border-radius: 0; }
 .filters[role="group"] > button, .chip-row[role="group"] > button { flex: 0 0 auto; width: auto; margin: 0;
   border-radius: 999px !important; box-shadow: none; }
+
+/* ==========================================================================
+   Bookings: held tables on the floor, /bookings timeline (laptops) + list (phones),
+   "Upcoming today", booking form. Block colours = booking status; late = chilli.
+   ========================================================================== */
+/* floor: a table held for a reservation (derived, starts within 45 min) */
+.tcard.held { border-style: dashed; border-color: var(--primary);
+              background: linear-gradient(var(--primary-10), var(--primary-10)), var(--ink-2); }
+.tcard.held .tstatus { color: var(--primary); }
+.tcard.held-late { border-color: var(--chilli); background: linear-gradient(var(--chilli-14), var(--chilli-14)), var(--ink-2); }
+.tcard.held-late .tstatus { color: var(--chilli); }
+.tcard .thold { font-size: .8rem; font-weight: 600; color: var(--text); line-height: 1.2; overflow-wrap: anywhere; }
+.arrive-pill { align-self: flex-start; margin-top: 2px; padding: 2px 8px; border-radius: 999px; font-size: .75rem;
+               font-weight: 700; background: var(--primary); color: var(--on-primary); }
+.legend .l-held { border-color: var(--primary); border-style: dashed; }
+.hold-card { border: 2px dashed var(--primary); margin-bottom: var(--s4); }
+.hold-card.late { border-color: var(--chilli); }
+.hold-card .hold-title { margin: 0; font-weight: 800; color: var(--primary); font-family: var(--font-display); font-size: 1.4rem; }
+.hold-card.late .hold-title { color: var(--chilli); }
+.hold-card .hold-who { margin: var(--s1) 0 var(--s3); }
+.override { margin-bottom: var(--s4); }
+
+/* page bits */
+.day-picker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.day-picker input { width: auto; margin: 0; }
+.day-picker [role="button"], .day-picker button { margin: 0; }
+.big-add { width: auto; margin: 0; }
+.booking-counts { flex-wrap: wrap; }
+.count-chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .75rem; border-radius: 999px;
+              background: var(--ink-2); border: 1px solid var(--line); font-size: .88rem; font-weight: 600; }
+.count-chip.late { border-color: var(--chilli); color: var(--chilli); }
+.booking-legend i { border-radius: 3px; border-width: 2px; }
+.b-booked { border-color: var(--primary) !important; background: var(--primary-10); }
+.b-seated { border-color: var(--turmeric-line) !important; background: var(--turmeric-12); }
+.b-completed { border-color: var(--cardamom) !important; background: var(--cardamom-12); }
+.b-no_show { border-color: var(--steel) !important; border-style: dashed !important; }
+.b-late { border-color: var(--chilli) !important; background: var(--chilli-14); }
+
+/* status pills */
+.badge.bstat { text-transform: none; }
+.badge.bstat.st-booked { background: linear-gradient(var(--primary-10), var(--primary-10)), var(--ink-2); color: var(--primary); border-color: var(--primary); }
+.badge.bstat.st-seated { background: linear-gradient(var(--turmeric-12), var(--turmeric-12)), var(--ink-2); color: var(--turmeric-text); border-color: var(--turmeric-line); }
+.badge.bstat.st-completed { background: linear-gradient(var(--cardamom-12), var(--cardamom-12)), var(--ink-2); color: var(--cardamom-text); border-color: var(--cardamom); }
+.badge.bstat.st-cancelled, .badge.bstat.st-no_show { background: var(--ink-2); color: var(--muted); border-color: var(--steel); }
+.late .badge.bstat, .badge.bstat.late { background: linear-gradient(var(--chilli-14), var(--chilli-14)), var(--ink-2); color: var(--chilli); border-color: var(--chilli); }
+
+/* timeline: laptops only */
+.timeline { display: none; }
+.booking-list, .upcoming-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); }
+.booking-list li, .upcoming-list li { list-style: none; }
+.bitem, .uitem { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) auto; gap: var(--s2) var(--s3); align-items: start;
+                 padding: var(--s3); background: var(--ink-2); border: 1px solid var(--line); border-left: 5px solid var(--primary);
+                 border-radius: var(--r-control); }
+.bitem.st-seated { border-left-color: var(--turmeric-line); }
+.bitem.st-completed { border-left-color: var(--cardamom); }
+.bitem.st-cancelled, .bitem.st-no_show { border-left-color: var(--steel); }
+.bitem.st-cancelled .bmain strong { text-decoration: line-through; }
+.bitem.late, .uitem.late { border-left-color: var(--chilli); background: linear-gradient(var(--chilli-14), var(--chilli-14)), var(--ink-2); }
+.btime { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; line-height: 1.1; font-variant-numeric: tabular-nums;
+         white-space: nowrap; }
+.btime .late-tag { display: block; font-family: var(--font-body); font-size: .72rem; font-weight: 800; color: var(--chilli); text-transform: uppercase; }
+.bmain { min-width: 0; overflow-wrap: anywhere; }
+.bmain small { display: block; color: var(--muted); }
+.bphone { display: inline-flex; align-items: center; gap: 4px; min-height: 2rem; font-weight: 600; font-size: .9rem; }
+.bphone .icon { width: 1rem; height: 1rem; }
+.bside { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s1); }
+.uactions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; gap: var(--s2); }
+.uactions form.inline { margin: 0; }
+.uactions .booking-cancel summary { font-size: .85rem; }
+@media (max-width: 480px) {
+  .uitem { grid-template-columns: 4.4rem minmax(0, 1fr); }
+  .uactions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+}
+.upcoming { margin: 0 0 var(--s4); }
+.upcoming .bar { margin-bottom: var(--s2); }
+.upcoming-empty { margin: 0; }
+.booking-cancel { margin: 0; }
+.booking-cancel summary { cursor: pointer; color: var(--chilli); font-weight: 700; list-style: none; }
+.booking-cancel[open] { width: 100%; }
+.booking-actions { display: grid; gap: var(--s3); margin-bottom: var(--s4); }
+.booking-actions form { margin: 0; }
+.kv-list { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--s1) var(--s3); margin: 0 0 var(--s3); }
+.kv-list dt { color: var(--muted); }
+.kv-list dd { margin: 0; }
+
+@media (min-width: 900px) {
+  .booking-list { display: none; }
+  .timeline { display: block; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-hero);
+              padding: var(--s2) var(--s3); overflow-x: auto; }
+  /* each hour at least 4.5rem wide: a long day scrolls sideways inside the card instead of squashing names */
+  .tl-row { display: grid; grid-template-columns: 4.5rem minmax(calc(var(--hours, 12) * 4.5rem), 1fr); align-items: stretch; min-height: 3rem;
+            border-bottom: 1px solid var(--line); }
+  .tl-row:last-of-type { border-bottom: none; }
+  .tl-head { min-height: 1.8rem; }
+  .tl-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tl-label small { color: var(--muted); font-weight: 500; }
+  .tl-track { position: relative;
+              background-image: repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px calc(100% / var(--hours, 12))); }
+  .tl-head .tl-track { background-image: none; }
+  .tl-hour { position: absolute; top: 4px; transform: translateX(-2px); font-size: .75rem; color: var(--muted);
+             font-variant-numeric: tabular-nums; }
+  .tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--chilli); z-index: 2; }
+  .bblock { position: absolute; top: 4px; bottom: 4px; display: flex; flex-direction: column; justify-content: center;
+            min-width: 6px; padding: 0 6px; line-height: 1.15; overflow: hidden; white-space: nowrap; border-radius: 6px; border: 1px solid var(--primary);
+            border-left-width: 4px; background: linear-gradient(var(--primary-10), var(--primary-10)), var(--ink-2);
+            color: var(--text); font-size: .8rem; font-weight: 600; text-decoration: none; z-index: 1; }
+  a.bblock:hover { box-shadow: var(--shadow); z-index: 3; }
+  .bblock.st-seated { border-color: var(--turmeric-line); background: linear-gradient(var(--turmeric-12), var(--turmeric-12)), var(--ink-2); }
+  .bblock.st-completed { border-color: var(--cardamom); background: linear-gradient(var(--cardamom-12), var(--cardamom-12)), var(--ink-2); }
+  .bblock.st-no_show { border-color: var(--steel); border-style: dashed; background: var(--ink-2); color: var(--muted); }
+  .bblock.late { border-color: var(--chilli); background: linear-gradient(var(--chilli-14), var(--chilli-14)), var(--ink-2); }
+  .tl-outside { margin: var(--s2) 0 0; font-size: .88rem; }
+}
+
+/* booking form (sheet + edit page) */
+.booking-fields { display: grid; grid-template-columns: 1fr; gap: 0 var(--s3); }
+.booking-fields label { margin-bottom: var(--s2); }
+@media (min-width: 600px) { .booking-fields { grid-template-columns: 1fr 1fr; } .booking-fields .span-2 { grid-column: 1 / -1; } }
+.suggest-box small { display: block; margin-top: 2px; }
+@media (min-width: 900px) {
+  .sheet.sheet-wide { left: 50%; right: auto; bottom: auto; top: 50%; width: min(44rem, calc(100vw - 2rem));
+                      transform: translate(-50%, -50%); border-radius: var(--r-hero); max-height: 90vh; animation: none; }
+}
+@media (min-width: 900px) {
+  .bblock b, .bblock span { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .bblock b { font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tl-label, .tl-head .tl-label { position: sticky; left: 0; z-index: 4; background: var(--ink-2); }
+}
+.booking-cancel > summary { display: inline-flex; align-items: center; width: auto; min-height: 2.75rem; padding: 0 .9rem;
+                            border: 1px solid var(--chilli-55); border-radius: var(--r-control); background: var(--ink-2);
+                            white-space: nowrap; }
+.booking-cancel > summary::after { display: none; }
